@@ -4,7 +4,16 @@ import bpy
 from bpy.types import Operator
 from mathutils import Vector
 from .utils import calculate_optimal_voxel_size, validate_mesh, ErrorHandler
-
+from .core import (
+    prepare_object_for_shell,
+    create_cutter_object,
+    setup_solidify_modifier,
+    setup_remesh_modifier,
+    setup_boolean_modifier,
+    cleanup_objects,
+    setup_3d_print_toolbox,
+    get_unit_settings
+)
 
 class OBJECT_OT_create_shell(Operator):
     """Create a shell around the selected mesh object."""
@@ -13,276 +22,390 @@ class OBJECT_OT_create_shell(Operator):
     bl_label = "Create Shell"
     bl_options = {'REGISTER', 'UNDO'}
     
+    # Timer for modal execution
+    _timer = None
+    # Current step in the process
+    _step = 0
+    # Store temporary objects and data
+    _temp_data = {}
+    # Operation steps
+    _steps = []
+    # Error handler
+    _error_handler = None
+    
     @classmethod
     def poll(cls, context):
         """Only enable the operator if there's a valid mesh object selected."""
         obj = context.active_object
         return obj is not None and obj.type == 'MESH'
+
+    def initialize_steps(self, context):
+        """Initialize the operation steps."""
+        props = context.scene.shellgen_props
+        prefs = context.preferences.addons[__package__.split('.')[0]].preferences
         
-    def execute(self, context):
-        """Execute the shell creation operation."""
+        # Get unit settings
+        unit_to_bu, unit_suffix = get_unit_settings(context)
+        
+        # Convert input values to Blender Units
+        offset_bu = props.offset * unit_to_bu
+        thickness_bu = props.thickness * unit_to_bu
+        remesh_voxel = props.remesh_voxel_size
+        
+        if props.auto_voxel_size:
+            remesh_voxel = calculate_optimal_voxel_size(
+                context.active_object,
+                detail_level=props.detail_level,
+                unit_scale=1.0 if context.scene.unit_settings.system == 'NONE' else context.scene.unit_settings.scale_length
+            )
+        remesh_voxel_bu = remesh_voxel * unit_to_bu
+        
+        # Store settings in temp data
+        self._temp_data.update({
+            'offset_bu': offset_bu,
+            'thickness_bu': thickness_bu,
+            'remesh_voxel_bu': remesh_voxel_bu,
+            'keep_modifiers': prefs.keep_modifiers,
+            'show_debug': prefs.show_debug_info,
+            'fast_mode': props.fast_mode,
+            'open_bottom': props.open_bottom,
+            'even_thickness': props.even_thickness,
+            'combine_selected': props.combine_selected_for_proxy,
+            'selected_objects': [obj for obj in context.selected_objects if obj.type == 'MESH'],
+            'active_object': context.active_object
+        })
+        
+        # Define operation steps
+        self._steps = [
+            ('PREPARE', "Preparing object...", self.step_prepare),
+            ('DUPLICATE', "Creating base geometry...", self.step_duplicate),
+            ('SOLIDIFY', "Adding initial shell...", self.step_add_solidify),
+            ('REMESH', "Optimizing mesh...", self.step_remesh),
+            ('CREATE_SHELL', "Creating outer shell...", self.step_create_shell),
+            ('SHELL_THICKNESS', "Adding shell thickness...", self.step_add_shell_thickness),
+            ('OPEN_BOTTOM', "Processing bottom cut..." if props.open_bottom else None, self.step_process_bottom),
+            ('CAVITY', "Creating mold cavity...", self.step_create_cavity),
+            ('CLEANUP', "Finalizing...", self.step_cleanup)
+        ]
+        
+        # Filter out None steps
+        self._steps = [(id, msg, func) for id, msg, func in self._steps if msg is not None]
+    
+    def modal(self, context, event):
+        """Handle modal execution of the shell generation process."""
+        if event.type == 'TIMER':
+            # Check if we have more steps to process
+            if self._step < len(self._steps):
+                try:
+                    # Get current step info
+                    step_id, message, step_func = self._steps[self._step]
+                    
+                    # Update progress
+                    progress = int((self._step / len(self._steps)) * 100)
+                    context.window_manager.progress_update(progress)
+                    self.report({'INFO'}, f"[{progress}%] {message}")
+                    
+                    # Execute step
+                    if not step_func(context):
+                        self.report({'ERROR'}, "Operation failed")
+                        self.cleanup_and_finish(context)
+                        return {'CANCELLED'}
+                    
+                    # Move to next step
+                    self._step += 1
+                    return {'RUNNING_MODAL'}
+                    
+                except Exception as e:
+                    self.report({'ERROR'}, f"Error during {step_id}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    self.cleanup_and_finish(context)
+                    return {'CANCELLED'}
+            else:
+                # All steps complete
+                self.cleanup_and_finish(context)
+                self.report({'INFO'}, "Shell generation completed!")
+                return {'FINISHED'}
+                
+        return {'PASS_THROUGH'}
+    
+    def invoke(self, context, event):
+        """Start the modal execution."""
         try:
             # Initialize error handler
-            error_handler = ErrorHandler()
+            self._error_handler = ErrorHandler()
             
-            props = context.scene.shellgen_props
-            offset = props.offset
-            thickness = props.thickness
-            open_bottom = props.open_bottom
-            fast_mode = props.fast_mode
-            auto_voxel = props.auto_voxel_size
-            remesh_voxel = props.remesh_voxel_size
-            
-            # Get addon preferences for keep_modifiers option
-            prefs = context.preferences.addons[__package__.split('.')[0]].preferences
-            keep_modifiers = prefs.keep_modifiers
-            
-            # Handle unit conversion properly
-            unit_settings = context.scene.unit_settings
-            unit_to_bu = 1.0 if unit_settings.system == 'NONE' else (0.001 / unit_settings.scale_length)
-            
-            # Convert input values to Blender Units
-            offset_bu = offset * unit_to_bu
-            thickness_bu = thickness * unit_to_bu
-            
+            # Validate input object
             obj = context.active_object
-            try:
-                validate_mesh(obj)
-            except ValueError as e:
-                self.report({'ERROR'}, str(e))
-                return {'CANCELLED'}
+            validate_mesh(obj)
             
-            # Calculate automatic voxel size if enabled
-            if auto_voxel:
-                remesh_voxel = calculate_optimal_voxel_size(
-                    obj, 
-                    detail_level=props.detail_level,
-                    unit_scale=1.0 if unit_settings.system == 'NONE' else unit_settings.scale_length
-                )
-                
-                # Get appropriate unit suffix based on scene settings
-                unit_suffix = ""
-                if unit_settings.system == 'METRIC':
-                    if unit_settings.length_unit == 'KILOMETERS':
-                        unit_suffix = "km"
-                    elif unit_settings.length_unit == 'METERS':
-                        unit_suffix = "m"
-                    elif unit_settings.length_unit == 'CENTIMETERS':
-                        unit_suffix = "cm"
-                    elif unit_settings.length_unit == 'MILLIMETERS':
-                        unit_suffix = "mm"
-                    elif unit_settings.length_unit == 'MICROMETERS':
-                        unit_suffix = "μm"
-                elif unit_settings.system == 'IMPERIAL':
-                    if unit_settings.length_unit == 'MILES':
-                        unit_suffix = "mi"
-                    elif unit_settings.length_unit == 'FEET':
-                        unit_suffix = "'"
-                    elif unit_settings.length_unit == 'INCHES':
-                        unit_suffix = "\""
-                    elif unit_settings.length_unit == 'THOU':
-                        unit_suffix = "thou"
-                
-                self.report({'INFO'}, f"Auto voxel size: {remesh_voxel:.3f}{unit_suffix}")
-                
-            remesh_voxel_bu = remesh_voxel * unit_to_bu
+            # Initialize operation steps
+            self.initialize_steps(context)
             
-            # Debug info about unit conversion
-            if prefs.show_debug_info:
-                self.report({'INFO'}, f"Unit scale: {unit_settings.scale_length}, System: {unit_settings.system}")
-                self.report({'INFO'}, f"Conversion factor (unit to BU): {unit_to_bu}")
-                self.report({'INFO'}, f"Offset: {offset} → {offset_bu} BU")
-                self.report({'INFO'}, f"Thickness: {thickness} → {thickness_bu} BU")
-                self.report({'INFO'}, f"Remesh voxel size: {remesh_voxel} → {remesh_voxel_bu} BU")
+            # Start progress indicator
+            context.window_manager.progress_begin(0, 100)
             
-            # Calculate total steps and step percentage
-            total_steps = 9  # increased due to re-added cavity boolean
-            step_percent = 100 / total_steps
-            current_step = 0
-                
-            # Store original selection and active object to restore later
-            original_selected = [o for o in context.selected_objects]
-            original_active = context.active_object
+            # Add timer for modal execution
+            wm = context.window_manager
+            self._timer = wm.event_timer_add(0.1, window=context.window)
+            wm.modal_handler_add(self)
             
-            # Helper function for applying modifiers
-            def apply_modifier_if_needed(obj, modifier):
-                if keep_modifiers:
-                    self.report({'INFO'}, f"Keeping modifier '{modifier.name}' visible (debug mode)")
-                    return
-                context.view_layer.objects.active = obj
-                bpy.ops.object.modifier_apply(modifier=modifier.name)
-
-            # Prepare proxy object if requested
-            mesh_objs = [o for o in context.selected_objects if o.type == 'MESH']
+            return {'RUNNING_MODAL'}
+            
+        except Exception as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
+    
+    def step_prepare(self, context):
+        """Step 1: Prepare the object for shell generation."""
+        obj = context.active_object
+        return prepare_object_for_shell(obj)
+    
+    def step_duplicate(self, context):
+        """Step 2: Duplicate the object to create mold."""
+        try:
+            obj = context.active_object
             proxy_obj = None
-            if props.combine_selected_for_proxy and len(mesh_objs) > 0:
-                # Duplicate and join the filtered meshes
-                bpy.ops.object.select_all(action='DESELECT')
-                for o in mesh_objs:
-                    o.select_set(True)
-                bpy.ops.object.duplicate()
-                bpy.ops.object.join()
-                proxy = context.active_object
-                proxy.name = obj.name + "_proxy"
-                # Remesh proxy to fuse internal geometry
-                rem = proxy.modifiers.new("Proxy_Remesh", 'REMESH')
-                rem.mode = 'VOXEL'
-                rem.voxel_size = remesh_voxel_bu
-                apply_modifier_if_needed(proxy, rem)
-                proxy_obj = proxy
-
-            # Step 1
-            current_step += 1
-            progress = int(current_step * step_percent)
-            self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Duplicating object...")
             
-            # Make sure we're in object mode
+            # Handle proxy object if requested
+            if self._temp_data['combine_selected'] and len(self._temp_data['selected_objects']) > 0:
+                # Deselect all objects first
+                bpy.ops.object.select_all(action='DESELECT')
+                
+                # Select and duplicate all mesh objects
+                for o in self._temp_data['selected_objects']:
+                    o.select_set(True)
+                context.view_layer.objects.active = self._temp_data['active_object']
+                
+                # Duplicate selected objects
+                bpy.ops.object.duplicate()
+                
+                # Join duplicated objects
+                if len(context.selected_objects) > 1:
+                    bpy.ops.object.join()
+                
+                proxy_obj = context.active_object
+                proxy_obj.name = obj.name + "_proxy"
+                
+                # Remesh proxy to fuse internal geometry
+                rem = proxy_obj.modifiers.new("Proxy_Remesh", 'REMESH')
+                rem.mode = 'VOXEL'
+                rem.voxel_size = self._temp_data['remesh_voxel_bu']
+                
+                if not self._temp_data['keep_modifiers']:
+                    context.view_layer.objects.active = proxy_obj
+                    bpy.ops.object.modifier_apply(modifier=rem.name)
+                
+                self._temp_data['proxy'] = proxy_obj
+                obj = proxy_obj
+            
+            # Ensure we're in object mode
             bpy.ops.object.mode_set(mode='OBJECT')
             
-            # Duplicate object to create mold with proper link to scene
+            # Duplicate object
             bpy.ops.object.select_all(action='DESELECT')
             obj.select_set(True)
             context.view_layer.objects.active = obj
             bpy.ops.object.duplicate()
-            mold = context.active_object
-            mold.name = obj.name + "_mold"
-            # Apply scale to ensure correct thickness calculations
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-
-            # Step 2
-            current_step += 1
-            progress = int(current_step * step_percent)
-            self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Adding offset shell (Solidify)...")
-            solid_mod = mold.modifiers.new("Solidify_Offset", 'SOLIDIFY')
-            solid_mod.thickness = offset_bu
-            solid_mod.offset = 1  # Push outward
-            solid_mod.use_rim = False  # Turn off rim fill for the mold
-            solid_mod.use_even_offset = props.even_thickness
-            apply_modifier_if_needed(mold, solid_mod)
-
-            # Step 3
-            current_step += 1
-            progress = int(current_step * step_percent)
-            self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Cleaning up mesh with remesh...")
-            remesh_mod = mold.modifiers.new("Remesh_Cleanup", 'REMESH')
-            remesh_mod.mode = 'VOXEL'
-            remesh_mod.voxel_size = remesh_voxel_bu
-            apply_modifier_if_needed(mold, remesh_mod)
-
-            # Step 4
-            current_step += 1
-            progress = int(current_step * step_percent)
-            self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Creating outer shell and thickness...")
             
-            # Duplicate the mold to create shell
+            mold = context.active_object
+            mold.name = self._temp_data['active_object'].name + "_mold"
+            
+            # Store for later use
+            self._temp_data['mold'] = mold
+            self._temp_data['original'] = self._temp_data['active_object']
+            
+            return True
+        except Exception as e:
+            self._error_handler.add_error(f"Duplication failed: {str(e)}")
+            return False
+    
+    def step_add_solidify(self, context):
+        """Step 3: Add initial solidify modifier for offset."""
+        try:
+            mold = self._temp_data['mold']
+            
+            solid_mod = setup_solidify_modifier(
+                mold,
+                self._temp_data['offset_bu'],
+                offset=1,
+                use_rim=False,
+                use_even_offset=self._temp_data['even_thickness']
+            )
+            
+            if not self._temp_data['keep_modifiers']:
+                context.view_layer.objects.active = mold
+                bpy.ops.object.modifier_apply(modifier=solid_mod.name)
+            
+            return True
+        except Exception as e:
+            self._error_handler.add_error(f"Solidify modifier failed: {str(e)}")
+            return False
+    
+    def step_remesh(self, context):
+        """Step 4: Add remesh modifier for cleanup."""
+        try:
+            mold = self._temp_data['mold']
+            
+            remesh_mod = setup_remesh_modifier(
+                mold,
+                self._temp_data['remesh_voxel_bu']
+            )
+            
+            if not self._temp_data['keep_modifiers']:
+                context.view_layer.objects.active = mold
+                bpy.ops.object.modifier_apply(modifier=remesh_mod.name)
+            
+            return True
+        except Exception as e:
+            self._error_handler.add_error(f"Remesh failed: {str(e)}")
+            return False
+    
+    def step_create_shell(self, context):
+        """Step 5: Create the outer shell object."""
+        try:
+            mold = self._temp_data['mold']
+            
+            # Duplicate mold to create shell
             bpy.ops.object.select_all(action='DESELECT')
             mold.select_set(True)
             context.view_layer.objects.active = mold
             bpy.ops.object.duplicate()
+            
             shell = context.active_object
-            shell.name = obj.name + "_shell"
-
-            # Step 5
-            current_step += 1
-            progress = int(current_step * step_percent)
-            self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Adding thickness to outer shell...")
-            shell_mod = shell.modifiers.new("Solidify_Shell", 'SOLIDIFY')
-            shell_mod.thickness = thickness_bu
-            shell_mod.offset = 1  # Push outward
-            shell_mod.use_even_offset = props.even_thickness
-            apply_modifier_if_needed(shell, shell_mod)
-
-            # Step 6 - Boolean operation with ground if open_bottom is enabled
-            current_step += 1
-            progress = int(current_step * step_percent)
-            if open_bottom:
-                self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Cutting open bottom at Z=0...")
-                # Create large cutter cube
-                bpy.ops.mesh.primitive_cube_add(size=1500, location=(0, 0, -750 + 0.001))
-                cutter = context.active_object
-                cutter.name = "ground_cutter"
-                cutter.display_type = 'WIRE'  # Make it wireframe for visibility
+            shell.name = self._temp_data['original'].name + "_shell"
             
-                # Apply boolean to shell with improved settings
-                context.view_layer.objects.active = shell
-                bool_mod_shell = shell.modifiers.new("Cut_Open_Bottom", 'BOOLEAN')
-                bool_mod_shell.operation = 'DIFFERENCE'
-                if fast_mode:
-                    bool_mod_shell.solver = 'FAST'
-                    bool_mod_shell.use_self = True
-                else:
-                    bool_mod_shell.solver = 'EXACT'
-                    bool_mod_shell.use_self = True
-                bool_mod_shell.object = cutter
-                apply_modifier_if_needed(shell, bool_mod_shell)
-                
-                # Also cut the mold bottom with the same ground cutter
-                context.view_layer.objects.active = mold
-                bool_mod_mold = mold.modifiers.new("Mold_Ground_Cut", 'BOOLEAN')
-                bool_mod_mold.operation = 'DIFFERENCE'
-                bool_mod_mold.solver = 'FAST' if fast_mode else 'EXACT'
-                bool_mod_mold.use_self = True
-                bool_mod_mold.object = cutter
-                apply_modifier_if_needed(mold, bool_mod_mold)
-            else:
-                self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Skipping bottom cut (closed shell)...")
-
-            # Now add Cavity_Boolean to mold only (after shell is created)
-            current_step += 1
-            progress = int(current_step * step_percent)
-            self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Creating mold cavity (boolean with original or proxy)...")
-            cav_target = proxy_obj if proxy_obj else obj
-            context.view_layer.objects.active = mold
-            cav_mod = mold.modifiers.new("Cavity_Boolean", 'BOOLEAN')
-            cav_mod.operation = 'DIFFERENCE'
-            cav_mod.solver = 'FAST' if fast_mode else 'EXACT'
-            cav_mod.use_self = True
-            cav_mod.object = cav_target
-            apply_modifier_if_needed(mold, cav_mod)
-            # Remove proxy when done, unless keep_modifiers is True
-            if proxy_obj and not keep_modifiers:
-                bpy.data.objects.remove(proxy_obj, do_unlink=True)
-
-            # Step 8 - Cleanup and finalize
-            current_step += 1
-            progress = int(current_step * step_percent)
-            self.report({'INFO'}, f"[{progress}%] Step {current_step}/{total_steps}: Finalizing and cleaning up...")
+            # Store for later use
+            self._temp_data['shell'] = shell
             
-            # Remove ground cutter if it exists and we're not keeping modifiers
-            cutter = bpy.data.objects.get("ground_cutter")
-            if cutter and not keep_modifiers:
-                cutter.hide_set(True)  # Hide it instead of deleting if keeping modifiers
-                if not keep_modifiers:
-                    bpy.data.objects.remove(cutter, do_unlink=True)
-                    
-            # Setup 3D print toolbox compatibility
-            for o in [mold, shell]:
-                if o.get('print3d_volume') is None:
-                    o['print3d_volume'] = 0
-            
-            # Select both the shell and mold
-            try:
-                for o in context.selected_objects:
-                    o.select_set(False)
-                mold.select_set(True)
-                shell.select_set(True)
-                context.view_layer.objects.active = shell
-                
-                self.report({'INFO'}, f"[100%] Shell generation completed!")
-                if keep_modifiers:
-                    self.report({'INFO'}, "Modifiers kept visible for debugging.")
-                self.report({'INFO'}, "Use the 3D Print Toolbox to calculate volume.")
-            except ReferenceError:
-                # In case objects were removed
-                self.report({'WARNING'}, "Some objects may have been removed during processing")
-                
-            return {'FINISHED'}
-            
+            return True
         except Exception as e:
-            self.report({'ERROR'}, f"Error during execution: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return {'CANCELLED'}
+            self._error_handler.add_error(f"Shell creation failed: {str(e)}")
+            return False
+    
+    def step_add_shell_thickness(self, context):
+        """Step 6: Add thickness to the shell."""
+        try:
+            shell = self._temp_data['shell']
+            
+            shell_mod = setup_solidify_modifier(
+                shell,
+                self._temp_data['thickness_bu'],
+                offset=1,
+                use_even_offset=self._temp_data['even_thickness']
+            )
+            
+            if not self._temp_data['keep_modifiers']:
+                context.view_layer.objects.active = shell
+                bpy.ops.object.modifier_apply(modifier=shell_mod.name)
+            
+            return True
+        except Exception as e:
+            self._error_handler.add_error(f"Shell thickness failed: {str(e)}")
+            return False
+    
+    def step_process_bottom(self, context):
+        """Step 7: Process open bottom if enabled."""
+        if not self._temp_data['open_bottom']:
+            return True
+            
+        try:
+            shell = self._temp_data['shell']
+            mold = self._temp_data['mold']
+            
+            # Create cutter
+            cutter = create_cutter_object()
+            self._temp_data['cutter'] = cutter
+            
+            # Cut shell bottom
+            bool_mod_shell = setup_boolean_modifier(
+                shell,
+                operation='DIFFERENCE',
+                solver='FAST' if self._temp_data['fast_mode'] else 'EXACT',
+                target=cutter
+            )
+            
+            if not self._temp_data['keep_modifiers']:
+                context.view_layer.objects.active = shell
+                bpy.ops.object.modifier_apply(modifier=bool_mod_shell.name)
+            
+            # Cut mold bottom
+            bool_mod_mold = setup_boolean_modifier(
+                mold,
+                operation='DIFFERENCE',
+                solver='FAST' if self._temp_data['fast_mode'] else 'EXACT',
+                target=cutter
+            )
+            
+            if not self._temp_data['keep_modifiers']:
+                context.view_layer.objects.active = mold
+                bpy.ops.object.modifier_apply(modifier=bool_mod_mold.name)
+            
+            return True
+        except Exception as e:
+            self._error_handler.add_error(f"Bottom processing failed: {str(e)}")
+            return False
+    
+    def step_create_cavity(self, context):
+        """Step 8: Create the mold cavity."""
+        try:
+            mold = self._temp_data['mold']
+            
+            # Use proxy or original object for cavity
+            cavity_target = self._temp_data.get('proxy', self._temp_data['original'])
+            
+            cav_mod = setup_boolean_modifier(
+                mold,
+                operation='DIFFERENCE',
+                solver='FAST' if self._temp_data['fast_mode'] else 'EXACT',
+                target=cavity_target
+            )
+            
+            if not self._temp_data['keep_modifiers']:
+                context.view_layer.objects.active = mold
+                bpy.ops.object.modifier_apply(modifier=cav_mod.name)
+            
+            return True
+        except Exception as e:
+            self._error_handler.add_error(f"Cavity creation failed: {str(e)}")
+            return False
+    
+    def step_cleanup(self, context):
+        """Step 9: Final cleanup and object setup."""
+        try:
+            # Clean up temporary objects
+            if not self._temp_data['keep_modifiers']:
+                cleanup_objects([
+                    self._temp_data.get('cutter'),
+                    self._temp_data.get('proxy')
+                ])
+            
+            # Setup 3D print toolbox compatibility
+            for obj in [self._temp_data['mold'], self._temp_data['shell']]:
+                setup_3d_print_toolbox(obj)
+            
+            # Select shell and mold
+            bpy.ops.object.select_all(action='DESELECT')
+            self._temp_data['mold'].select_set(True)
+            self._temp_data['shell'].select_set(True)
+            context.view_layer.objects.active = self._temp_data['shell']
+            
+            return True
+        except Exception as e:
+            self._error_handler.add_error(f"Cleanup failed: {str(e)}")
+            return False
+    
+    def cleanup_and_finish(self, context):
+        """Clean up the operator state."""
+        context.window_manager.progress_end()
+        if self._timer:
+            context.window_manager.event_timer_remove(self._timer)
+            self._timer = None
+            
+        # Clear temporary data
+        self._temp_data.clear()
+        self._step = 0
+        self._steps.clear()
 
 
 class OBJECT_OT_shell_reset_props(Operator):

@@ -15,8 +15,6 @@ class VIEW3D_MT_shell_gen_menu(Menu):
         """Draw the menu."""
         layout = self.layout
         layout.operator("object.create_offset_shell", icon='MOD_SOLIDIFY')
-        layout.separator()
-        layout.operator("object.shell_reset_props", icon='LOOP_BACK')
 
 
 def draw_shell_gen_menu(self, context):
@@ -41,61 +39,69 @@ class OBJECT_PT_shell_panel(Panel):
         """Only display in object mode."""
         return context.mode == 'OBJECT'
 
+    def draw_header(self, context):
+        """Draw the header with icon."""
+        self.layout.label(text="", icon='MESH_CUBE')
+
     def draw(self, context):
         """Draw the panel."""
         layout = self.layout
         props = context.scene.shellgen_props
-        prefs = context.preferences.addons[__package__.split('.')[0]].preferences
         
         # Check if there's a valid mesh object selected
         obj = context.active_object
-        has_valid_object = obj is not None and obj.type == 'MESH'
-        
-        # Help and info box
-        box = layout.box()
-        row = box.row()
-        row.label(text="Shell Generator", icon='MESH_CUBE')
-        
-        if not has_valid_object:
-            box = layout.box()
-            col = box.column()
+        if obj is None or obj.type != 'MESH':
+            col = layout.column()
             col.label(text="No mesh selected", icon='ERROR')
             col.label(text="Please select a mesh object")
             return
-        
-        # Shell Parameters
+
+        # Basic Settings
         box = layout.box()
-        box.label(text="Shell Parameters:", icon='MOD_SOLIDIFY')
+        box.label(text="Basic Settings", icon='PREFERENCES')
         col = box.column(align=True)
         col.prop(props, "offset")
         col.prop(props, "thickness")
         col.separator()
         col.prop(props, "open_bottom")
+
+        # Advanced Settings
+        box = layout.box()
+        box.label(text="Advanced Settings", icon='SETTINGS')
+        
+        # Misc Settings
+        box_inner = box.box()
+        box_inner.label(text="Misc")
+        col = box_inner.column()
         col.prop(props, "combine_selected_for_proxy")
-        col.separator()
         col.prop(props, "even_thickness")
         if props.even_thickness:
-            col.label(text="May create artifacts at sharp corners!", icon='ERROR')
+            col.label(text="Warning: May create artifacts", icon='ERROR')
         
-        # Performance Settings  
-        box = layout.box()
-        box.label(text="Performance Settings:", icon='SETTINGS')
-        col = box.column()
+        # Performance Settings
+        box_inner = box.box()
+        box_inner.label(text="Performance", icon='MOD_REMESH')
+        col = box_inner.column()
         
-        # Fast Mode row
-        row = col.row()
-        row.prop(props, "fast_mode")
+        # Fast Mode
+        col.prop(props, "fast_mode")
+        if props.fast_mode:
+            col.label(text="Uses faster boolean solver")
+            col.label(text="and simpler remesh settings")
         
-        # Auto Voxel Size row
-        row = col.row()
-        row.prop(props, "auto_voxel_size")
+        # Mesh Resolution section
+        box_inner = box.box()
+        box_inner.label(text="Mesh Resolution")
+        col = box_inner.column()
         
-        # Conditional controls based on auto voxel size
-        sub_col = col.column(align=True)
+        # Auto Voxel Size
+        col.prop(props, "auto_voxel_size")
+        
         if props.auto_voxel_size:
-            sub_col.prop(props, "detail_level", slider=True)
+            col.prop(props, "detail_level", slider=True)
             
-            # Show estimated voxel size if auto mode and object is selected
+            # Show estimated voxel size
+            obj = context.active_object
             if obj and obj.type == 'MESH':
                 try:
                     unit_settings = context.scene.unit_settings
@@ -107,7 +113,7 @@ class OBJECT_PT_shell_panel(Panel):
                         unit_scale=unit_scale
                     )
                     
-                    # Get appropriate unit suffix based on scene settings
+                    # Get appropriate unit suffix
                     unit_suffix = ""
                     if unit_settings.system == 'METRIC':
                         if unit_settings.length_unit == 'KILOMETERS':
@@ -131,58 +137,15 @@ class OBJECT_PT_shell_panel(Panel):
                             unit_suffix = "thou"
                     
                     sample_text = f"Est. Size: {sample_size:.3f}{unit_suffix}"
-                    sub_col.label(text=sample_text, icon='INFO')
-                except Exception as e:
-                    sub_col.label(text="Est. Size: Using calculated value", icon='INFO')
-        else:
-            # Manual voxel size control
-            sub_col.prop(props, "remesh_voxel_size")
-        
-        # Reset to defaults button
-        box = layout.box()
-        row = box.row()
-        row.label(text="Utilities:")
-        row = box.row()
-        reset_op = row.operator("object.shell_reset_props", text="Reset to Defaults", icon='LOOP_BACK')
-        
-        # Create button
-        layout.separator()
-        row = layout.row(align=True)
-        row.scale_y = 1.5
-        op = row.operator("object.create_offset_shell", icon='CUBE')
-        
-        # Debug info
-        if prefs.show_debug_info:
-            box = layout.box()
-            box.label(text="Debug Info:", icon='INFO')
-            col = box.column()
-            col.label(text=f"Object: {obj.name}")
-            col.label(text=f"Verts: {len(obj.data.vertices)}")
-            # Get addon version from bl_info
-            # We can't access bl_info directly here, but the version can be accessed
-            # through the addon preferences if needed
-            if obj and obj.type == 'MESH':
-                try:
-                    vertex_count = len(obj.data.vertices)
-                    face_count = len(obj.data.polygons)
-                    
-                    from mathutils import Vector
-                    bbox_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-                    min_x = min(corner.x for corner in bbox_corners)
-                    max_x = max(corner.x for corner in bbox_corners)
-                    min_y = min(corner.y for corner in bbox_corners)
-                    max_y = max(corner.y for corner in bbox_corners)
-                    min_z = min(corner.z for corner in bbox_corners)
-                    max_z = max(corner.z for corner in bbox_corners)
-                    
-                    diagonal = ((max_x - min_x)**2 + (max_y - min_y)**2 + (max_z - min_z)**2)**0.5
-                    
-                    col.label(text=f"Dimensions: {max_x-min_x:.1f} x {max_y-min_y:.1f} x {max_z-min_z:.1f}")
-                    col.label(text=f"Diagonal: {diagonal:.1f}")
-                    col.label(text=f"Faces: {face_count}")
-                    
-                    # Show the actual auto calculation formula for debugging
-                    sample_size = calculate_optimal_voxel_size(obj, props.detail_level, unit_scale=1.0)
-                    col.label(text=f"Auto voxel calc: {sample_size:.4f}")
+                    col.label(text=sample_text, icon='INFO')
                 except:
-                    pass
+                    col.label(text="Est. Size: Using calculated value", icon='INFO')
+        else:
+            col.prop(props, "remesh_voxel_size")
+
+        # Actions section at the bottom
+        box = layout.box()
+        box.label(text="Actions", icon='PLAY')
+        row = box.row()
+        row.scale_y = 2.0
+        op = row.operator("object.create_offset_shell", icon='CUBE')

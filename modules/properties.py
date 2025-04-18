@@ -46,19 +46,19 @@ class ShellGenAddonPreferences(AddonPreferences):
         layout = self.layout
         
         box = layout.box()
-        box.label(text="Default Settings:")
+        box.label(text="Default Settings")
         col = box.column(align=True)
         col.prop(self, "default_offset")
         col.prop(self, "default_thickness")
         
         box = layout.box()
-        box.label(text="Advanced Options:")
+        box.label(text="Advanced Options")
         col = box.column()
         col.prop(self, "show_debug_info")
         col.prop(self, "keep_modifiers")
         
         box = layout.box()
-        box.label(text="Documentation & Support:")
+        box.label(text="Documentation & Support")
         col = box.column()
         col.operator("wm.url_open", text="GitHub Repository").url = "https://github.com/ruakij/blender-shell-generator"
         col.operator("wm.url_open", text="Report Issues").url = "https://github.com/ruakij/blender-shell-generator/issues"
@@ -95,7 +95,7 @@ class ShellGenProperties(PropertyGroup):
     
     fast_mode: BoolProperty(
         name="Fast Mode",
-        description="Use faster calculations with remesh (sacrifices some precision for speed)",
+        description="Uses faster but less precise boolean solver and simpler remesh settings. May help with complex geometry but can affect quality.",
         default=False,
     )
     
