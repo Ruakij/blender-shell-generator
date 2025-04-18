@@ -2,7 +2,7 @@
 
 ![Blender Version](https://img.shields.io/badge/Blender-4.0%2B-orange)
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
-![Version](https://img.shields.io/badge/Version-1.0.0-green)
+![Version](https://img.shields.io/badge/Version-1.1.0-green)
 
 A Blender add-on to generate shells with customizable offset and thickness for selected mesh objects, perfect for creating cases, enclosures, or molds.
 
@@ -16,6 +16,8 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 - Compatible with the 3D Print Toolbox
 - User-friendly sidebar panel with intuitive controls
 - Advanced options for customization
+- Asynchronous processing with visual feedback
+- Proper handling of Blender's unit settings
 
 ## Usage
 
@@ -24,41 +26,48 @@ A Blender add-on to generate shells with customizable offset and thickness for s
    - Sidebar panel: View3D > Sidebar > ShellGen
    - Object menu: Object > Shell Generator
    - Shortcut: Ctrl+Alt+S
-3. Adjust parameters as needed:
-   - **Offset**: Distance between original object and inner shell surface
-   - **Thickness**: Thickness of the shell wall
-   - **Open Bottom**: Remove geometry below Z=0 to create an open bottom
-   - **Combine Selected Meshes**: Join multiple selected objects to create a single shell
+3. Adjust parameters as needed
 4. Click "Create Shell" to generate the shell
 
 ## Parameters
 
+### Basic Settings
 - **Offset**: Gap between original object and shell
 - **Thickness**: Shell wall thickness
 - **Open Bottom**: Remove geometry below Z=0
+
+### Advanced Settings
+#### Misc Options
 - **Combine Selected Meshes**: Join multiple selected objects for shell creation
-- **Max Gap**: Maximum allowed gap between objects when combining meshes
-- **Fast Mode**: Use faster calculations (sacrifices some precision)
-- **Remesh Voxel Size**: Controls resolution for remesh operations (smaller = higher quality)
-- **Even Thickness (experimental)**: Enable Blender's "Even Thickness" for solidify modifiers. This can help maintain the requested thickness at sharp corners, but may introduce artifacts in complex geometry.
+- **Even Thickness (experimental)**: Help maintain thickness at sharp corners (may create artifacts)
 
-## Advanced Options
-
-Access add-on preferences for additional settings:
-1. Go to Edit > Preferences > Add-ons
-2. Find and expand "Shell Generator"
-3. Adjust advanced settings:
-   - Default values
-   - Debug information visibility
-   - Modifier application options
+#### Performance Options
+- **Fast Mode**: Use faster calculations with simplified settings
+- **Mesh Resolution**:
+  - **Auto Voxel Size**: Automatically calculate optimal resolution
+    - **Detail Level**: Control the resolution when using auto mode
+  - **Manual Voxel Size**: Direct control over remesh resolution
 
 ## Known Issues
 
-- Very complex meshes may require more processing time
+- Very complex meshes may require more processing time or even run Blender out of memory
+   - Consider using lower resolution meshes or simplifying geometry to improve performance
+   - You can also try using the "Fast Mode" and coarser "Mesh Resolution" setting
 - Boolean operations may occasionally fail with non-manifold geometry
     - For best results, ensure input meshes are clean and manifold
-    - Alternatively one can try to use the "Combine Selected Meshes" to use a clean mesh internally (also works for single meshes)
-    - At sharp corners, the shell thickness may be smaller than requested. Enabling "Even Thickness" can help maintain minimum thickness, but may introduce artifacts, especially in complex geometry.
+    - Alternatively you can try to use the "Combine Selected Meshes" to use a clean mesh internally (also works for single meshes)
+- At sharp corners, the shell offset and/or thickness may be smaller than requested.
+    - Enabling "Even Thickness" can help maintain minimum thickness, but may introduce artifacts, especially in complex geometry.
+
+## Development
+
+The addon uses a modular structure for better maintainability:
+- `__init__.py`: Addon registration and metadata
+- `modules/core.py`: Core shell generation functionality
+- `modules/operators.py`: Modal operator for shell creation
+- `modules/properties.py`: Property definitions and preferences
+- `modules/ui.py`: User interface with section organization
+- `modules/utils.py`: Utility functions and error handling
 
 ## License
 
