@@ -187,6 +187,10 @@ class OBJECT_OT_create_shell(Operator):
                 proxy_obj = context.active_object
                 proxy_obj.name = obj.name + "_proxy"
                 
+                # Apply scale to the proxy
+                context.view_layer.objects.active = proxy_obj
+                bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                
                 # Remesh proxy to fuse internal geometry
                 rem = proxy_obj.modifiers.new("Proxy_Remesh", 'REMESH')
                 rem.mode = 'VOXEL'
@@ -210,6 +214,10 @@ class OBJECT_OT_create_shell(Operator):
             
             mold = context.active_object
             mold.name = self._temp_data['active_object'].name + "_mold"
+            
+            # Apply scale to the mold
+            context.view_layer.objects.active = mold
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
             
             # Store for later use
             self._temp_data['mold'] = mold

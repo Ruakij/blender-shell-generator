@@ -24,10 +24,6 @@ def prepare_object_for_shell(obj):
     if bpy.context.active_object and bpy.context.active_object.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
     
-    # Apply scale to ensure correct thickness calculations
-    original_scale = obj.scale.copy()
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    
     return True
 
 

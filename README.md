@@ -2,7 +2,7 @@
 
 ![Blender Version](https://img.shields.io/badge/Blender-4.0%2B-orange)
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
-![Version](https://img.shields.io/badge/Version-1.1.0-green)
+![Version](https://img.shields.io/badge/Version-1.1.1-green)
 
 A Blender add-on to generate shells with customizable offset and thickness for selected mesh objects, perfect for creating cases, enclosures, or molds.
 
