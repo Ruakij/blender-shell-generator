@@ -6,6 +6,9 @@
 
 A Blender add-on to generate shells with customizable offset and thickness for selected mesh objects, perfect for creating cases, enclosures, or molds.
 
+![](docs/images/image.png)  
+*Result of the Shell Generator addon: A shell with offset from the object (cut for better visibility)*.
+
 ## Features
 
 - Create precise offset shells around any mesh object
