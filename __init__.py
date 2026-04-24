@@ -3,6 +3,8 @@ from bpy.props import PointerProperty
 from bpy.types import Menu
 from bpy.utils import register_class, unregister_class
 
+ADDON_ID = __package__
+
 from .modules import (
     core,
     operators,

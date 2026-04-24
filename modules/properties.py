@@ -1,6 +1,7 @@
 """Property definitions for the Shell Generator addon."""
 
 import bpy
+from .. import ADDON_ID
 from bpy.props import (
     FloatProperty,
     BoolProperty,
@@ -13,7 +14,7 @@ from bpy.types import PropertyGroup, AddonPreferences
 class ShellGenAddonPreferences(AddonPreferences):
     """Addon preferences for Shell Generator."""
     
-    bl_idname = __package__.split('.')[0]  # Get root package name
+    bl_idname = ADDON_ID
 
     default_offset: FloatProperty(
         name="Default Offset",

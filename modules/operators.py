@@ -3,6 +3,7 @@
 import bpy
 from bpy.types import Operator
 from mathutils import Vector
+from .. import ADDON_ID
 from .utils import calculate_optimal_voxel_size, validate_mesh, ErrorHandler
 from .core import (
     prepare_object_for_shell,
@@ -12,7 +13,7 @@ from .core import (
     setup_boolean_modifier,
     cleanup_objects,
     setup_3d_print_toolbox,
-    get_unit_settings
+    get_unit_settings,
 )
 
 class OBJECT_OT_create_shell(Operator):
@@ -42,7 +43,7 @@ class OBJECT_OT_create_shell(Operator):
     def initialize_steps(self, context):
         """Initialize the operation steps."""
         props = context.scene.shellgen_props
-        prefs = context.preferences.addons[__package__.split('.')[0]].preferences
+        prefs = context.preferences.addons[ADDON_ID].preferences
         
         # Get unit settings
         unit_to_bu, unit_suffix = get_unit_settings(context)
@@ -107,7 +108,9 @@ class OBJECT_OT_create_shell(Operator):
                     
                     # Execute step
                     if not step_func(context):
-                        self.report({'ERROR'}, "Operation failed")
+                        messages = self._error_handler.get_messages() if self._error_handler else []
+                        msg = messages[-1]['message'] if messages else "Operation failed"
+                        self.report({'ERROR'}, msg)
                         self.cleanup_and_finish(context)
                         return {'CANCELLED'}
                     
@@ -329,7 +332,7 @@ class OBJECT_OT_create_shell(Operator):
             bool_mod_shell = setup_boolean_modifier(
                 shell,
                 operation='DIFFERENCE',
-                solver='FAST' if self._temp_data['fast_mode'] else 'EXACT',
+                solver='FLOAT' if self._temp_data['fast_mode'] else 'EXACT',
                 target=cutter
             )
             
@@ -341,7 +344,7 @@ class OBJECT_OT_create_shell(Operator):
             bool_mod_mold = setup_boolean_modifier(
                 mold,
                 operation='DIFFERENCE',
-                solver='FAST' if self._temp_data['fast_mode'] else 'EXACT',
+                solver='FLOAT' if self._temp_data['fast_mode'] else 'EXACT',
                 target=cutter
             )
             
@@ -365,7 +368,7 @@ class OBJECT_OT_create_shell(Operator):
             cav_mod = setup_boolean_modifier(
                 mold,
                 operation='DIFFERENCE',
-                solver='FAST' if self._temp_data['fast_mode'] else 'EXACT',
+                solver='FLOAT' if self._temp_data['fast_mode'] else 'EXACT',
                 target=cavity_target
             )
             
@@ -409,7 +412,14 @@ class OBJECT_OT_create_shell(Operator):
         if self._timer:
             context.window_manager.event_timer_remove(self._timer)
             self._timer = None
-            
+
+        # Remove any temporary objects left in the scene (e.g. ground_cutter on failure)
+        from .core import cleanup_objects
+        cleanup_objects([
+            self._temp_data.get('cutter'),
+            self._temp_data.get('proxy')
+        ])
+
         # Clear temporary data
         self._temp_data.clear()
         self._step = 0
@@ -426,7 +436,7 @@ class OBJECT_OT_shell_reset_props(Operator):
 
     def execute(self, context):
         """Execute the property reset operation."""
-        prefs = context.preferences.addons[__package__.split('.')[0]].preferences
+        prefs = context.preferences.addons[ADDON_ID].preferences
         props = context.scene.shellgen_props
         
         # Reset to addon preference defaults

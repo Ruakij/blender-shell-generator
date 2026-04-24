@@ -1,6 +1,7 @@
 # Blender Shell Generator
 
-![Blender Version](https://img.shields.io/badge/Blender-4.2%2B-orange)
+![Blender Version](https://img.shields.io/badge/Blender-4.5%2B-orange)
+![Tested](https://img.shields.io/badge/Tested%20with-Blender%205.1.1-brightgreen)
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Version](https://img.shields.io/github/v/release/ruakij/blender-shell-generator?label=Version&color=green)
 
