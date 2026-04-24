@@ -1,18 +1,3 @@
-"""Shell Generator addon - Generate shells with customizable offset and thickness."""
-
-bl_info = {
-    "name": "Shell Generator",
-    "author": "Ruakij",
-    "version": (1, 1, 1),
-    "blender": (4, 0, 0),
-    "location": "View3D > Sidebar > ShellGen",
-    "description": "Generate a shell with offset/thickness for the selected mesh, optionally open at Z=0",
-    "warning": "",
-    "doc_url": "https://github.com/ruakij/blender-shell-generator",
-    "category": "Object",
-    "support": "COMMUNITY"
-}
-
 import bpy
 from bpy.props import PointerProperty
 from bpy.types import Menu

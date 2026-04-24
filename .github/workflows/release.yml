@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches manifest version
+        run: |
+          TAG="${{ github.ref_name }}"
+          MANIFEST=$(grep '^version' blender_manifest.toml | grep -o '"[^"]*"' | tr -d '"')
+          if [ "${TAG#v}" != "$MANIFEST" ]; then
+            echo "Tag $TAG does not match manifest version $MANIFEST"
+            exit 1
+          fi
+
+      - name: Build extension
+        run: make
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "Release ${{ github.ref_name }}" \
+            --generate-notes \
+            dist/blender_shell_generator-*.zip
+        env:
+          GH_TOKEN: ${{ github.token }}

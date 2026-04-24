@@ -1,8 +1,8 @@
 # Blender Shell Generator
 
-![Blender Version](https://img.shields.io/badge/Blender-4.0%2B-orange)
+![Blender Version](https://img.shields.io/badge/Blender-4.2%2B-orange)
 ![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
-![Version](https://img.shields.io/badge/Version-1.1.1-green)
+![Version](https://img.shields.io/github/v/release/ruakij/blender-shell-generator?label=Version&color=green)
 
 A Blender add-on to generate shells with customizable offset and thickness for selected mesh objects, perfect for creating cases, enclosures, or molds.
 
@@ -21,6 +21,15 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 - Advanced options for customization
 - Asynchronous processing with visual feedback
 - Proper handling of Blender's unit settings
+
+## Installation
+
+1. Download the latest `blender_shell_generator-x.y.z.zip` from the [Releases](https://github.com/ruakij/blender-shell-generator/releases) page
+2. In Blender, open **Edit → Preferences → Add-ons**
+3. Click **Install from Disk…** and select the downloaded ZIP
+4. Enable the **Shell Generator** add-on by ticking its checkbox
+
+> Requires Blender 4.2 or newer.
 
 ## Usage
 
