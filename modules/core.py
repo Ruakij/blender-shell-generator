@@ -112,10 +112,10 @@ def cleanup_objects(objects_to_remove):
     for obj in objects_to_remove:
         if obj is None:
             continue
-        # First hide the object
-        obj.hide_set(True)
-        # Then remove it
-        bpy.data.objects.remove(obj, do_unlink=True)
+        try:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        except ReferenceError:
+            pass  # Already removed
 
 
 def setup_3d_print_toolbox(obj):
