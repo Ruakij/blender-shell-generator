@@ -50,8 +50,8 @@ class ShellGenAddonPreferences(AddonPreferences):
     max_voxels_per_axis: IntProperty(
         name="Max Voxels per Axis",
         description="Upper limit for the remesh resolution along the longest axis. "
-                    "Higher values allow finer detail on large objects, but memory use grows "
-                    "with the square of this value (250 peaks at a few GB)",
+                    "Higher values allow finer detail on large objects, but the boolean cuts "
+                    "on the denser result need time and memory growing with the square of this value",
         default=250,
         min=10,
     )
