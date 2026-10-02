@@ -2,9 +2,8 @@
 
 import bmesh
 import bpy
-from mathutils import Vector
 from mathutils.bvhtree import BVHTree
-from .utils import validate_mesh, ErrorHandler
+from .utils import validate_mesh
 
 
 def prepare_object_for_shell(obj):

@@ -76,32 +76,3 @@ def validate_mesh(obj):
         raise ValueError("Mesh has no vertices")
     if not obj.data.polygons:
         raise ValueError("Mesh has no faces")
-
-class ErrorHandler:
-    """Handle and manage errors during shell generation."""
-    
-    def __init__(self):
-        """Initialize the error handler."""
-        self.errors = []
-    
-    def add_error(self, message, level='ERROR'):
-        """
-        Add an error message with specified level.
-        
-        Args:
-            message: Error message
-            level: Error level ('ERROR', 'WARNING', or 'INFO')
-        """
-        self.errors.append({'message': message, 'level': level})
-    
-    def has_errors(self):
-        """Check if there are any errors."""
-        return any(error['level'] == 'ERROR' for error in self.errors)
-    
-    def get_messages(self):
-        """Get all error messages."""
-        return self.errors
-    
-    def clear(self):
-        """Clear all errors."""
-        self.errors = []

@@ -1,13 +1,10 @@
 """Property definitions for the Shell Generator addon."""
 
-import bpy
 from .. import ADDON_ID
 from bpy.props import (
     FloatProperty,
     BoolProperty,
     IntProperty,
-    PointerProperty,
-    StringProperty
 )
 from bpy.types import PropertyGroup, AddonPreferences
 
@@ -33,12 +30,6 @@ class ShellGenAddonPreferences(AddonPreferences):
         min=0.001,
         subtype='DISTANCE',
         unit='LENGTH'
-    )
-    
-    show_debug_info: BoolProperty(
-        name="Show Debug Info",
-        description="Display additional debug information during operation",
-        default=False
     )
     
     keep_modifiers: BoolProperty(
@@ -69,7 +60,6 @@ class ShellGenAddonPreferences(AddonPreferences):
         box = layout.box()
         box.label(text="Advanced Options")
         col = box.column()
-        col.prop(self, "show_debug_info")
         col.prop(self, "keep_modifiers")
         col.prop(self, "max_voxels_per_axis")
         

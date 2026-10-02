@@ -2,9 +2,8 @@
 
 import bpy
 from bpy.types import Operator
-from mathutils import Vector
 from .. import ADDON_ID
-from .utils import calculate_optimal_voxel_size, format_length, min_voxel_size, validate_mesh, ErrorHandler
+from .utils import calculate_optimal_voxel_size, format_length, min_voxel_size, validate_mesh
 from .core import (
     prepare_object_for_shell,
     create_cutter_object,
@@ -31,8 +30,8 @@ class OBJECT_OT_create_shell(Operator):
     _temp_data = {}
     # Operation steps
     _steps = []
-    # Error handler
-    _error_handler = None
+    # Error messages of failed steps
+    _errors = []
     
     @classmethod
     def poll(cls, context):
@@ -68,7 +67,6 @@ class OBJECT_OT_create_shell(Operator):
             'thickness_bu': thickness_bu,
             'remesh_voxel_bu': remesh_voxel_bu,
             'keep_modifiers': prefs.keep_modifiers,
-            'show_debug': prefs.show_debug_info,
             'fast_mode': props.fast_mode,
             'open_bottom': props.open_bottom,
             'even_thickness': props.even_thickness,
@@ -109,9 +107,7 @@ class OBJECT_OT_create_shell(Operator):
                     
                     # Execute step
                     if not step_func(context):
-                        messages = self._error_handler.get_messages() if self._error_handler else []
-                        msg = messages[-1]['message'] if messages else "Operation failed"
-                        self.report({'ERROR'}, msg)
+                        self.report({'ERROR'}, self._errors[-1] if self._errors else "Operation failed")
                         self.cleanup_and_finish(context)
                         return {'CANCELLED'}
                     
@@ -136,8 +132,7 @@ class OBJECT_OT_create_shell(Operator):
     def invoke(self, context, event):
         """Start the modal execution."""
         try:
-            # Initialize error handler
-            self._error_handler = ErrorHandler()
+            self._errors = []
             
             # Validate input object
             obj = context.active_object
@@ -229,7 +224,7 @@ class OBJECT_OT_create_shell(Operator):
             
             return True
         except Exception as e:
-            self._error_handler.add_error(f"Duplication failed: {str(e)}")
+            self._errors.append(f"Duplication failed: {str(e)}")
             return False
     
     def step_add_solidify(self, context):
@@ -251,7 +246,7 @@ class OBJECT_OT_create_shell(Operator):
             
             return True
         except Exception as e:
-            self._error_handler.add_error(f"Solidify modifier failed: {str(e)}")
+            self._errors.append(f"Solidify modifier failed: {str(e)}")
             return False
     
     def step_remesh(self, context):
@@ -270,7 +265,7 @@ class OBJECT_OT_create_shell(Operator):
             
             return True
         except Exception as e:
-            self._error_handler.add_error(f"Remesh failed: {str(e)}")
+            self._errors.append(f"Remesh failed: {str(e)}")
             return False
     
     def step_create_shell(self, context):
@@ -292,7 +287,7 @@ class OBJECT_OT_create_shell(Operator):
             
             return True
         except Exception as e:
-            self._error_handler.add_error(f"Shell creation failed: {str(e)}")
+            self._errors.append(f"Shell creation failed: {str(e)}")
             return False
     
     def step_add_shell_thickness(self, context):
@@ -313,7 +308,7 @@ class OBJECT_OT_create_shell(Operator):
             
             return True
         except Exception as e:
-            self._error_handler.add_error(f"Shell thickness failed: {str(e)}")
+            self._errors.append(f"Shell thickness failed: {str(e)}")
             return False
     
     def step_process_bottom(self, context):
@@ -355,7 +350,7 @@ class OBJECT_OT_create_shell(Operator):
             
             return True
         except Exception as e:
-            self._error_handler.add_error(f"Bottom processing failed: {str(e)}")
+            self._errors.append(f"Bottom processing failed: {str(e)}")
             return False
     
     def step_create_cavity(self, context):
@@ -388,7 +383,7 @@ class OBJECT_OT_create_shell(Operator):
             
             return True
         except Exception as e:
-            self._error_handler.add_error(f"Cavity creation failed: {str(e)}")
+            self._errors.append(f"Cavity creation failed: {str(e)}")
             return False
     
     def step_cleanup(self, context):
@@ -413,7 +408,7 @@ class OBJECT_OT_create_shell(Operator):
             
             return True
         except Exception as e:
-            self._error_handler.add_error(f"Cleanup failed: {str(e)}")
+            self._errors.append(f"Cleanup failed: {str(e)}")
             return False
     
     def cleanup_and_finish(self, context):

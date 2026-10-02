@@ -85,7 +85,7 @@ The addon uses a modular structure for better maintainability:
 - `modules/operators.py`: Modal operator for shell creation
 - `modules/properties.py`: Property definitions and preferences
 - `modules/ui.py`: User interface with section organization
-- `modules/utils.py`: Utility functions and error handling
+- `modules/utils.py`: Utility functions
 
 ## License
 

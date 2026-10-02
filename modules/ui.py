@@ -1,6 +1,5 @@
 """UI components for the Shell Generator addon."""
 
-import bpy
 from bpy.types import Panel, Menu
 from .utils import calculate_optimal_voxel_size, format_length
 
