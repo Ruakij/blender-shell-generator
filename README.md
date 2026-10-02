@@ -30,7 +30,7 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 3. Click **Install from Disk…** and select the downloaded ZIP
 4. Enable the **Shell Generator** add-on by ticking its checkbox
 
-> Requires Blender 4.2 or newer.
+> Requires Blender 4.5 or newer.
 
 ## Usage
 
