@@ -3,10 +3,6 @@
 import bpy
 from mathutils import Vector
 
-# Keeps peak memory at a few GB (roughly 1M faces on a cube-like object)
-MAX_VOXELS_PER_AXIS = 250
-
-
 def calculate_optimal_voxel_size(obj, detail_level=1.0):
     """
     Calculate optimal voxel size based on object complexity and dimensions.
@@ -44,14 +40,14 @@ def calculate_optimal_voxel_size(obj, detail_level=1.0):
     return diagonal_length * base_voxel_percent * detail_level
 
 
-def min_voxel_size(objects, margin):
+def min_voxel_size(objects, margin, max_voxels_per_axis):
     """
     Smallest voxel size keeping the remesh grid of the objects plus margin
-    within MAX_VOXELS_PER_AXIS along the longest axis, in Blender Units.
+    within max_voxels_per_axis along the longest axis, in Blender Units.
     """
     corners = [o.matrix_world @ Vector(c) for o in objects for c in o.bound_box]
     extent = max(max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3))
-    return (extent + 2 * margin) / MAX_VOXELS_PER_AXIS
+    return (extent + 2 * margin) / max_voxels_per_axis
 
 def validate_mesh(obj):
     """

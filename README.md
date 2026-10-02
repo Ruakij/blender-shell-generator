@@ -61,6 +61,9 @@ A Blender add-on to generate shells with customizable offset and thickness for s
     - **Detail Level**: Control the resolution when using auto mode
   - **Manual Voxel Size**: Direct control over remesh resolution
 
+### Add-on Preferences
+- **Max Voxels per Axis**: Upper limit for the remesh resolution (default 250). Memory use grows with the square of this value; voxel sizes finer than the limit allows are raised automatically
+
 ## Known Issues
 
 - Very complex meshes may require more processing time or even run Blender out of memory

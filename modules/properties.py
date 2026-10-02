@@ -5,6 +5,7 @@ from .. import ADDON_ID
 from bpy.props import (
     FloatProperty,
     BoolProperty,
+    IntProperty,
     PointerProperty,
     StringProperty
 )
@@ -41,6 +42,15 @@ class ShellGenAddonPreferences(AddonPreferences):
         description="Don't apply modifiers automatically, keep them visible for debugging",
         default=False
     )
+
+    max_voxels_per_axis: IntProperty(
+        name="Max Voxels per Axis",
+        description="Upper limit for the remesh resolution along the longest axis. "
+                    "Higher values allow finer detail on large objects, but memory use grows "
+                    "with the square of this value (250 peaks at a few GB)",
+        default=250,
+        min=10,
+    )
     
     def draw(self, context):
         """Draw the preferences panel."""
@@ -57,6 +67,7 @@ class ShellGenAddonPreferences(AddonPreferences):
         col = box.column()
         col.prop(self, "show_debug_info")
         col.prop(self, "keep_modifiers")
+        col.prop(self, "max_voxels_per_axis")
         
         box = layout.box()
         box.label(text="Documentation & Support")

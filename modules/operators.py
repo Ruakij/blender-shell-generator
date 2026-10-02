@@ -58,7 +58,8 @@ class OBJECT_OT_create_shell(Operator):
         selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
         voxel_floor = min_voxel_size(
             selected_meshes if props.combine_selected_for_proxy and selected_meshes else [context.active_object],
-            offset_bu + thickness_bu
+            offset_bu + thickness_bu,
+            prefs.max_voxels_per_axis
         )
         if remesh_voxel_bu < voxel_floor:
             self.report({'WARNING'}, f"Voxel size raised to {voxel_floor:.4g} BU to limit memory use")
