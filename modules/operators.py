@@ -3,7 +3,7 @@
 import bpy
 from bpy.types import Operator
 from .. import ADDON_ID
-from .utils import calculate_optimal_voxel_size, format_length, min_voxel_size, validate_mesh
+from .utils import format_length, remesh_voxel_size, validate_mesh
 from .core import (
     prepare_object_for_shell,
     create_cutter_object,
@@ -47,19 +47,12 @@ class OBJECT_OT_create_shell(Operator):
         # Length properties are stored in Blender Units
         offset_bu = props.offset
         thickness_bu = props.thickness
-        remesh_voxel_bu = props.remesh_voxel_size
-        if props.auto_voxel_size:
-            remesh_voxel_bu = calculate_optimal_voxel_size(context.active_object, detail_level=props.detail_level)
+        remesh_voxel_bu, _, bound, raised = remesh_voxel_size(context)
+        if raised and remesh_voxel_bu > bound:
+            self.report({'WARNING'}, f"Voxel size raised to {format_length(context, remesh_voxel_bu)} "
+                                     "by Max Voxels per Axis, above half the offset")
 
         selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        voxel_floor = min_voxel_size(
-            selected_meshes if props.combine_selected_for_proxy and selected_meshes else [context.active_object],
-            offset_bu + thickness_bu,
-            prefs.max_voxels_per_axis
-        )
-        if remesh_voxel_bu < voxel_floor:
-            self.report({'WARNING'}, f"Voxel size raised to {format_length(context, voxel_floor)} to limit memory use")
-            remesh_voxel_bu = voxel_floor
         
         # Store settings in temp data
         self._temp_data.update({

@@ -54,8 +54,8 @@ Collapsed by default; the defaults suit most meshes.
 - **Combine Selected**: Join all selected meshes into one remeshed source for the shell
 - **Even Thickness**: Help maintain thickness at sharp corners (experimental, may create artifacts)
 - **Fast Mode**: Cut the cavity of an open or self-intersecting mesh with the faster but less reliable Float boolean solver instead of Exact
-- **Auto Voxel Size**: Calculate the remesh resolution from the object size
-  - **Detail Level**: Scale the automatic voxel size (lower = finer)
+- **Auto Voxel Size**: Calculate the remesh resolution from the object size and complexity, at most half the offset. The remesh only rebuilds the offset layer and lands within about one voxel, so this keeps at least half the requested gap
+  - **Detail Level**: Scale the size-based voxel size (lower = finer)
   - **Remesh Voxel Size**: Direct control over the remesh resolution when Auto Voxel Size is off
 
 All lengths follow the scene unit settings. The defaults (10 offset, 5 thickness) are in Blender Units, which matches millimetres for STL files imported at scale 1.

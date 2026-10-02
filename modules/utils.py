@@ -2,6 +2,7 @@
 
 import bpy
 from mathutils import Vector
+from .. import ADDON_ID
 
 def calculate_optimal_voxel_size(obj, detail_level=1.0):
     """
@@ -48,6 +49,38 @@ def min_voxel_size(objects, margin, max_voxels_per_axis):
     corners = [o.matrix_world @ Vector(c) for o in objects for c in o.bound_box]
     extent = max(max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3))
     return (extent + 2 * margin) / max_voxels_per_axis
+
+
+def source_objects(context):
+    """The meshes the operator builds the shell from."""
+    selected = [o for o in context.selected_objects if o.type == 'MESH']
+    if context.scene.shellgen_props.combine_selected_for_proxy and selected:
+        return selected
+    return [context.active_object]
+
+
+def remesh_voxel_size(context):
+    """
+    Voxel size the operator remeshes with.
+
+    Returns:
+        tuple: (voxel size, voxels along the longest axis, offset bound,
+            whether the max voxels per axis raised the size)
+    """
+    props = context.scene.shellgen_props
+    max_voxels = context.preferences.addons[ADDON_ID].preferences.max_voxels_per_axis
+    # The remesh only rebuilds the offset layer: the cavity is cut with the original
+    # and the thickness is added afterwards. Its surface lands within about a voxel,
+    # so half the offset keeps at least half the requested gap.
+    bound = props.offset / 2
+    if props.auto_voxel_size:
+        voxel = min(calculate_optimal_voxel_size(context.active_object, detail_level=props.detail_level), bound)
+    else:
+        voxel = props.remesh_voxel_size
+    floor = min_voxel_size(source_objects(context), props.offset + props.thickness, max_voxels)
+    raised = voxel < floor
+    voxel = max(voxel, floor)
+    return voxel, round(max_voxels * floor / voxel), bound, raised
 
 
 def format_length(context, value_bu):

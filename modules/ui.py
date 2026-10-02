@@ -1,7 +1,7 @@
 """UI components for the Shell Generator addon."""
 
 from bpy.types import Panel, Menu
-from .utils import calculate_optimal_voxel_size, format_length
+from .utils import format_length, remesh_voxel_size
 
 
 class VIEW3D_MT_shell_gen_menu(Menu):
@@ -99,7 +99,6 @@ class OBJECT_PT_shell_advanced(Panel):
         col.prop(props, "auto_voxel_size")
         if props.auto_voxel_size:
             col.prop(props, "detail_level", slider=True)
-            sample_size = calculate_optimal_voxel_size(context.active_object, detail_level=props.detail_level)
-            col.label(text=f"Est. Size: {format_length(context, sample_size)}", icon='INFO')
+            col.label(text=f"Est. Size: {format_length(context, remesh_voxel_size(context)[0])}", icon='INFO')
         else:
             col.prop(props, "remesh_voxel_size")
