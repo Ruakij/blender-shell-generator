@@ -42,6 +42,8 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 3. Set Offset and Thickness
 4. Click "Create Shell" to generate the shell
 
+The shell is built from the meshes as the viewport shows them, with modifiers and shape keys applied. Mold and shell come without modifiers, shape keys or parent. Only one run can be active at a time; a failed run removes everything it created.
+
 ## Parameters
 
 ### Basic Settings
@@ -73,6 +75,7 @@ All lengths follow the scene unit settings. The defaults (10 offset, 5 thickness
     - Alternatively, "Combine Selected" builds a clean remeshed source internally (also works for single meshes)
 - At sharp corners, the shell offset and/or thickness may be smaller than requested.
     - Enabling "Even Thickness" can help maintain minimum thickness, but may introduce artifacts, especially in complex geometry.
+- The open bottom always cuts at Z=0 of the world
 
 ## Development
 

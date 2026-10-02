@@ -2,6 +2,7 @@
 
 import bmesh
 import bpy
+from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 from .utils import validate_mesh
 
@@ -28,18 +29,54 @@ def prepare_object_for_shell(obj):
     return True
 
 
-def create_cutter_object():
+def create_cutter_object(objects):
     """
-    Create a cutter object for open bottom shells.
-    
+    Create a box ending at Z=0.001 that covers the world bounding box of objects
+    with a margin, for open bottom shells.
+
     Returns:
-        bpy.types.Object: The created cutter object
+        bpy.types.Object: The cutter, not linked to any collection
     """
-    bpy.ops.mesh.primitive_cube_add(size=1500, location=(0, 0, -750 + 0.001))
-    cutter = bpy.context.active_object
-    cutter.name = "ground_cutter"
+    corners = [o.matrix_world @ Vector(c) for o in objects for c in o.bound_box]
+    lo = Vector([min(c[i] for c in corners) for i in range(3)])
+    hi = Vector([max(c[i] for c in corners) for i in range(3)])
+    margin = 0.1 * max(hi - lo)
+    lo -= Vector((margin,) * 3)
+    hi += Vector((margin,) * 3)
+    lo.z = min(lo.z, 0.001 - margin)
+    hi.z = 0.001
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1)
+    bm.transform(Matrix.LocRotScale((lo + hi) / 2, None, hi - lo))
+    mesh = bpy.data.meshes.new("ground_cutter")
+    bm.to_mesh(mesh)
+    bm.free()
+    cutter = bpy.data.objects.new("ground_cutter", mesh)
     cutter.display_type = 'WIRE'  # Make it wireframe for visibility
     return cutter
+
+
+def evaluated_mesh(objects, depsgraph, frame, name):
+    """
+    Join the meshes of objects as the viewport shows them, with modifiers and
+    shape keys applied, into a new mesh in the space of the matrix frame.
+    Faces of objects with a negative scale are flipped, so the result keeps
+    the normals the viewport shows without needing the mirroring matrix.
+    """
+    bm = bmesh.new()
+    for obj in objects:
+        faces_start = len(bm.faces)
+        verts_start = len(bm.verts)
+        bm.from_object(obj, depsgraph)
+        bm.verts.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
+        bmesh.ops.transform(bm, matrix=frame.inverted() @ obj.matrix_world, verts=bm.verts[verts_start:])
+        if obj.matrix_world.is_negative:
+            bmesh.ops.reverse_faces(bm, faces=bm.faces[faces_start:])
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    return mesh
 
 
 def setup_solidify_modifier(obj, thickness, offset=1.0, use_rim=True, use_even_offset=False):
@@ -127,8 +164,9 @@ def mesh_defects(obj, depsgraph):
 
 def cleanup_objects(objects_to_remove):
     """
-    Remove temporary objects created during shell generation.
-    
+    Remove temporary objects created during shell generation, with their
+    meshes once nothing else uses them.
+
     Args:
         objects_to_remove: List of objects to remove
     """
@@ -136,7 +174,10 @@ def cleanup_objects(objects_to_remove):
         if obj is None:
             continue
         try:
+            data = obj.data
             bpy.data.objects.remove(obj, do_unlink=True)
+            if data is not None and data.users == 0:
+                bpy.data.meshes.remove(data)
         except ReferenceError:
             pass  # Already removed
 
