@@ -3,17 +3,20 @@
 import bpy
 from mathutils import Vector
 
-def calculate_optimal_voxel_size(obj, detail_level=1.0, unit_scale=1.0):
+# Keeps peak memory at a few GB (roughly 1M faces on a cube-like object)
+MAX_VOXELS_PER_AXIS = 250
+
+
+def calculate_optimal_voxel_size(obj, detail_level=1.0):
     """
     Calculate optimal voxel size based on object complexity and dimensions.
     
     Args:
         obj: The blender object to analyze
         detail_level: User-configurable multiplier (higher = less detail, larger voxels)
-        unit_scale: Scale to convert from Blender units to display units
         
     Returns:
-        float: Optimal voxel size in current units
+        float: Optimal voxel size in Blender Units
     """
     # Get object dimensions from bounding box
     bbox_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
@@ -38,15 +41,17 @@ def calculate_optimal_voxel_size(obj, detail_level=1.0, unit_scale=1.0):
     # Base voxel size as percentage of diagonal (smaller for complex objects)
     base_voxel_percent = 0.005 * complexity_factor  # 0.5% for average complexity
     
-    # Calculate voxel size
-    voxel_size = diagonal_length * base_voxel_percent * detail_level
-    
-    # Enforce reasonable limits (limits in Blender Units, will be scaled based on unit system)
-    min_size = 0.1
-    max_size = 5.0 * detail_level
-    voxel_size = max(min_size, min(voxel_size, max_size))
-    
-    return voxel_size  # Return size in current units
+    return diagonal_length * base_voxel_percent * detail_level
+
+
+def min_voxel_size(objects, margin):
+    """
+    Smallest voxel size keeping the remesh grid of the objects plus margin
+    within MAX_VOXELS_PER_AXIS along the longest axis, in Blender Units.
+    """
+    corners = [o.matrix_world @ Vector(c) for o in objects for c in o.bound_box]
+    extent = max(max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3))
+    return (extent + 2 * margin) / MAX_VOXELS_PER_AXIS
 
 def validate_mesh(obj):
     """

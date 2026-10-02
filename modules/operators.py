@@ -4,7 +4,7 @@ import bpy
 from bpy.types import Operator
 from mathutils import Vector
 from .. import ADDON_ID
-from .utils import calculate_optimal_voxel_size, validate_mesh, ErrorHandler
+from .utils import calculate_optimal_voxel_size, min_voxel_size, validate_mesh, ErrorHandler
 from .core import (
     prepare_object_for_shell,
     create_cutter_object,
@@ -51,15 +51,18 @@ class OBJECT_OT_create_shell(Operator):
         # Convert input values to Blender Units
         offset_bu = props.offset * unit_to_bu
         thickness_bu = props.thickness * unit_to_bu
-        remesh_voxel = props.remesh_voxel_size
-        
+        remesh_voxel_bu = props.remesh_voxel_size * unit_to_bu
         if props.auto_voxel_size:
-            remesh_voxel = calculate_optimal_voxel_size(
-                context.active_object,
-                detail_level=props.detail_level,
-                unit_scale=1.0 if context.scene.unit_settings.system == 'NONE' else context.scene.unit_settings.scale_length
-            )
-        remesh_voxel_bu = remesh_voxel * unit_to_bu
+            remesh_voxel_bu = calculate_optimal_voxel_size(context.active_object, detail_level=props.detail_level)
+
+        selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        voxel_floor = min_voxel_size(
+            selected_meshes if props.combine_selected_for_proxy and selected_meshes else [context.active_object],
+            offset_bu + thickness_bu
+        )
+        if remesh_voxel_bu < voxel_floor:
+            self.report({'WARNING'}, f"Voxel size raised to {voxel_floor:.4g} BU to limit memory use")
+            remesh_voxel_bu = voxel_floor
         
         # Store settings in temp data
         self._temp_data.update({
@@ -72,7 +75,7 @@ class OBJECT_OT_create_shell(Operator):
             'open_bottom': props.open_bottom,
             'even_thickness': props.even_thickness,
             'combine_selected': props.combine_selected_for_proxy,
-            'selected_objects': [obj for obj in context.selected_objects if obj.type == 'MESH'],
+            'selected_objects': selected_meshes,
             'active_object': context.active_object
         })
         

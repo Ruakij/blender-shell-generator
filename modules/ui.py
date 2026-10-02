@@ -103,43 +103,12 @@ class OBJECT_PT_shell_panel(Panel):
             # Show estimated voxel size
             obj = context.active_object
             if obj and obj.type == 'MESH':
-                try:
-                    unit_settings = context.scene.unit_settings
-                    unit_scale = 1.0 if unit_settings.system == 'NONE' else unit_settings.scale_length
-                    
-                    sample_size = calculate_optimal_voxel_size(
-                        obj,
-                        detail_level=props.detail_level,
-                        unit_scale=unit_scale
-                    )
-                    
-                    # Get appropriate unit suffix
-                    unit_suffix = ""
-                    if unit_settings.system == 'METRIC':
-                        if unit_settings.length_unit == 'KILOMETERS':
-                            unit_suffix = "km"
-                        elif unit_settings.length_unit == 'METERS':
-                            unit_suffix = "m"
-                        elif unit_settings.length_unit == 'CENTIMETERS':
-                            unit_suffix = "cm"
-                        elif unit_settings.length_unit == 'MILLIMETERS':
-                            unit_suffix = "mm"
-                        elif unit_settings.length_unit == 'MICROMETERS':
-                            unit_suffix = "μm"
-                    elif unit_settings.system == 'IMPERIAL':
-                        if unit_settings.length_unit == 'MILES':
-                            unit_suffix = "mi"
-                        elif unit_settings.length_unit == 'FEET':
-                            unit_suffix = "'"
-                        elif unit_settings.length_unit == 'INCHES':
-                            unit_suffix = "\""
-                        elif unit_settings.length_unit == 'THOU':
-                            unit_suffix = "thou"
-                    
-                    sample_text = f"Est. Size: {sample_size:.3f}{unit_suffix}"
-                    col.label(text=sample_text, icon='INFO')
-                except:
-                    col.label(text="Est. Size: Using calculated value", icon='INFO')
+                unit_settings = context.scene.unit_settings
+                sample_size = calculate_optimal_voxel_size(obj, detail_level=props.detail_level)
+                sample_text = bpy.utils.units.to_string(
+                    unit_settings.system, 'LENGTH', sample_size * unit_settings.scale_length, precision=3
+                )
+                col.label(text=f"Est. Size: {sample_text}", icon='INFO')
         else:
             col.prop(props, "remesh_voxel_size")
 
