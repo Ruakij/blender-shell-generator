@@ -394,12 +394,12 @@ class OBJECT_OT_create_shell(Operator):
     def step_cleanup(self, context):
         """Step 9: Final cleanup and object setup."""
         try:
-            # Clean up temporary objects
-            if not self._temp_data['keep_modifiers']:
-                cleanup_objects([
-                    self._temp_data.get('cutter'),
-                    self._temp_data.get('proxy')
-                ])
+            # Kept modifiers still reference the helper objects, so hide them instead
+            if self._temp_data['keep_modifiers']:
+                for helper in (self._temp_data.get('cutter'), self._temp_data.get('proxy')):
+                    if helper:
+                        helper.hide_set(True)
+                        helper.hide_render = True
             
             # Setup 3D print toolbox compatibility
             for obj in [self._temp_data['mold'], self._temp_data['shell']]:
@@ -423,12 +423,12 @@ class OBJECT_OT_create_shell(Operator):
             context.window_manager.event_timer_remove(self._timer)
             self._timer = None
 
-        # Remove any temporary objects left in the scene (e.g. ground_cutter on failure)
-        from .core import cleanup_objects
-        cleanup_objects([
-            self._temp_data.get('cutter'),
-            self._temp_data.get('proxy')
-        ])
+        # Remove the helper objects unless kept modifiers reference them
+        if not self._temp_data.get('keep_modifiers'):
+            cleanup_objects([
+                self._temp_data.get('cutter'),
+                self._temp_data.get('proxy')
+            ])
 
         # Clear temporary data
         self._temp_data.clear()
