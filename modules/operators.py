@@ -4,7 +4,7 @@ import bpy
 from bpy.types import Operator
 from mathutils import Vector
 from .. import ADDON_ID
-from .utils import calculate_optimal_voxel_size, min_voxel_size, validate_mesh, ErrorHandler
+from .utils import calculate_optimal_voxel_size, format_length, min_voxel_size, validate_mesh, ErrorHandler
 from .core import (
     prepare_object_for_shell,
     create_cutter_object,
@@ -13,7 +13,6 @@ from .core import (
     setup_boolean_modifier,
     cleanup_objects,
     setup_3d_print_toolbox,
-    get_unit_settings,
 )
 
 class OBJECT_OT_create_shell(Operator):
@@ -45,13 +44,10 @@ class OBJECT_OT_create_shell(Operator):
         props = context.scene.shellgen_props
         prefs = context.preferences.addons[ADDON_ID].preferences
         
-        # Get unit settings
-        unit_to_bu, unit_suffix = get_unit_settings(context)
-        
-        # Convert input values to Blender Units
-        offset_bu = props.offset * unit_to_bu
-        thickness_bu = props.thickness * unit_to_bu
-        remesh_voxel_bu = props.remesh_voxel_size * unit_to_bu
+        # Length properties are stored in Blender Units
+        offset_bu = props.offset
+        thickness_bu = props.thickness
+        remesh_voxel_bu = props.remesh_voxel_size
         if props.auto_voxel_size:
             remesh_voxel_bu = calculate_optimal_voxel_size(context.active_object, detail_level=props.detail_level)
 
@@ -62,7 +58,7 @@ class OBJECT_OT_create_shell(Operator):
             prefs.max_voxels_per_axis
         )
         if remesh_voxel_bu < voxel_floor:
-            self.report({'WARNING'}, f"Voxel size raised to {voxel_floor:.4g} BU to limit memory use")
+            self.report({'WARNING'}, f"Voxel size raised to {format_length(context, voxel_floor)} to limit memory use")
             remesh_voxel_bu = voxel_floor
         
         # Store settings in temp data

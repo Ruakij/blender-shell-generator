@@ -21,14 +21,18 @@ class ShellGenAddonPreferences(AddonPreferences):
         name="Default Offset",
         description="Default value for the offset distance",
         default=10.0,
-        min=0.001
+        min=0.001,
+        subtype='DISTANCE',
+        unit='LENGTH'
     )
     
     default_thickness: FloatProperty(
         name="Default Thickness",
         description="Default value for the shell thickness",
         default=5.0,
-        min=0.001
+        min=0.001,
+        subtype='DISTANCE',
+        unit='LENGTH'
     )
     
     show_debug_info: BoolProperty(

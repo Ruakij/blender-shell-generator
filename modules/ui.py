@@ -2,7 +2,7 @@
 
 import bpy
 from bpy.types import Panel, Menu
-from .utils import calculate_optimal_voxel_size
+from .utils import calculate_optimal_voxel_size, format_length
 
 
 class VIEW3D_MT_shell_gen_menu(Menu):
@@ -103,12 +103,8 @@ class OBJECT_PT_shell_panel(Panel):
             # Show estimated voxel size
             obj = context.active_object
             if obj and obj.type == 'MESH':
-                unit_settings = context.scene.unit_settings
                 sample_size = calculate_optimal_voxel_size(obj, detail_level=props.detail_level)
-                sample_text = bpy.utils.units.to_string(
-                    unit_settings.system, 'LENGTH', sample_size * unit_settings.scale_length, precision=3
-                )
-                col.label(text=f"Est. Size: {sample_text}", icon='INFO')
+                col.label(text=f"Est. Size: {format_length(context, sample_size)}", icon='INFO')
         else:
             col.prop(props, "remesh_voxel_size")
 

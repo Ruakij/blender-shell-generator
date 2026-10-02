@@ -49,6 +49,15 @@ def min_voxel_size(objects, margin, max_voxels_per_axis):
     extent = max(max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3))
     return (extent + 2 * margin) / max_voxels_per_axis
 
+
+def format_length(context, value_bu):
+    """Format a length in Blender Units using the scene unit settings."""
+    unit_settings = context.scene.unit_settings
+    return bpy.utils.units.to_string(
+        unit_settings.system, 'LENGTH', value_bu * unit_settings.scale_length, precision=3
+    )
+
+
 def validate_mesh(obj):
     """
     Validate mesh before processing.
