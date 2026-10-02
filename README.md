@@ -15,7 +15,7 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 - Create precise offset shells around any mesh object
 - Control shell thickness and offset distance
 - Option to create open-bottom shells (cut at Z=0)
-- Fast mode with remesh for quicker processing
+- Fast mode for open or self-intersecting meshes
 - Ability to combine multiple selected objects to create a single shell
 - Compatible with the 3D Print Toolbox
 - User-friendly sidebar panel with intuitive controls
@@ -55,7 +55,7 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 - **Even Thickness (experimental)**: Help maintain thickness at sharp corners (may create artifacts)
 
 #### Performance Options
-- **Fast Mode**: Use faster calculations with simplified settings
+- **Fast Mode**: Cut the cavity of an open or self-intersecting mesh with the faster but less reliable Float boolean solver instead of Exact
 - **Mesh Resolution**:
   - **Auto Voxel Size**: Automatically calculate optimal resolution
     - **Detail Level**: Control the resolution when using auto mode

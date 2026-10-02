@@ -86,8 +86,8 @@ class OBJECT_PT_shell_panel(Panel):
         # Fast Mode
         col.prop(props, "fast_mode")
         if props.fast_mode:
-            col.label(text="Uses faster boolean solver")
-            col.label(text="and simpler remesh settings")
+            col.label(text="Float solver for open or")
+            col.label(text="self-intersecting meshes")
         
         # Mesh Resolution section
         box_inner = box.box()
