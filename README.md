@@ -71,7 +71,7 @@ All lengths follow the scene unit settings. The defaults (10 offset, 5 thickness
 - Very complex meshes may require more processing time or even run Blender out of memory
    - Consider using lower resolution meshes or simplifying geometry to improve performance
    - You can also try using the "Fast Mode" and coarser "Mesh Resolution" setting
-- Boolean operations may occasionally fail with non-manifold geometry
+- The cavity is cut with the fast Manifold boolean solver only if the original mesh is closed and free of self-intersections; otherwise the much slower and more memory hungry Exact solver is used
     - For best results, ensure input meshes are clean and manifold
     - Alternatively you can try to use the "Combine Selected Meshes" to use a clean mesh internally (also works for single meshes)
 - At sharp corners, the shell offset and/or thickness may be smaller than requested.

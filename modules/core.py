@@ -1,7 +1,9 @@
 """Core functionality for shell generation."""
 
+import bmesh
 import bpy
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 from .utils import validate_mesh, ErrorHandler
 
 
@@ -87,7 +89,7 @@ def setup_boolean_modifier(obj, operation='DIFFERENCE', solver='EXACT', target=N
     Args:
         obj: The object to add the modifier to
         operation: Boolean operation type ('DIFFERENCE', 'UNION', or 'INTERSECT')
-        solver: Solver type ('EXACT' or 'FAST')
+        solver: Solver type ('EXACT', 'FLOAT' or 'MANIFOLD')
         target: Target object for the boolean operation
         use_self: Handle self-intersecting operands; makes the exact solver
             many times slower and more memory hungry on dense meshes
@@ -102,6 +104,26 @@ def setup_boolean_modifier(obj, operation='DIFFERENCE', solver='EXACT', target=N
     if target:
         mod.object = target
     return mod
+
+
+def mesh_defects(obj, depsgraph):
+    """
+    Check the evaluated mesh of obj for what the Manifold boolean solver cannot
+    handle; it silently leaves the target unchanged on such an operand.
+
+    Returns:
+        tuple: (closed, self_intersecting)
+    """
+    bm = bmesh.new()
+    bm.from_object(obj, depsgraph)
+    closed = all(e.is_manifold for e in bm.edges)
+    bm.verts.index_update()
+    tris = [[l.vert.index for l in tri] for tri in bm.calc_loop_triangles()]
+    tree = BVHTree.FromPolygons([v.co for v in bm.verts], tris)
+    bm.free()
+    # overlap() also reports neighbouring triangles, which only touch
+    self_intersecting = any(not set(tris[a]) & set(tris[b]) for a, b in tree.overlap(tree))
+    return closed, self_intersecting
 
 
 def cleanup_objects(objects_to_remove):

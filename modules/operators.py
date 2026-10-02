@@ -11,6 +11,7 @@ from .core import (
     setup_solidify_modifier,
     setup_remesh_modifier,
     setup_boolean_modifier,
+    mesh_defects,
     cleanup_objects,
     setup_3d_print_toolbox,
 )
@@ -332,7 +333,7 @@ class OBJECT_OT_create_shell(Operator):
             bool_mod_shell = setup_boolean_modifier(
                 shell,
                 operation='DIFFERENCE',
-                solver='FLOAT' if self._temp_data['fast_mode'] else 'EXACT',
+                solver='MANIFOLD',  # both operands are closed by construction
                 target=cutter
             )
             
@@ -344,7 +345,7 @@ class OBJECT_OT_create_shell(Operator):
             bool_mod_mold = setup_boolean_modifier(
                 mold,
                 operation='DIFFERENCE',
-                solver='FLOAT' if self._temp_data['fast_mode'] else 'EXACT',
+                solver='MANIFOLD',  # both operands are closed by construction
                 target=cutter
             )
             
@@ -365,12 +366,20 @@ class OBJECT_OT_create_shell(Operator):
             # Use proxy or original object for cavity
             cavity_target = self._temp_data.get('proxy', self._temp_data['original'])
             
+            # A remeshed proxy is always closed and free of self-intersections
+            solver, use_self = 'MANIFOLD', False
+            if 'proxy' not in self._temp_data:
+                closed, self_intersecting = mesh_defects(cavity_target, context.evaluated_depsgraph_get())
+                if not closed or self_intersecting:
+                    solver = 'FLOAT' if self._temp_data['fast_mode'] else 'EXACT'
+                    use_self = self_intersecting  # makes Exact many times slower, so only when needed
+
             cav_mod = setup_boolean_modifier(
                 mold,
                 operation='DIFFERENCE',
-                solver='FLOAT' if self._temp_data['fast_mode'] else 'EXACT',
+                solver=solver,
                 target=cavity_target,
-                use_self='proxy' not in self._temp_data  # the original may self-intersect, a remeshed proxy cannot
+                use_self=use_self
             )
             
             if not self._temp_data['keep_modifiers']:
