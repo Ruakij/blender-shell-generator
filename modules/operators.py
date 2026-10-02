@@ -444,14 +444,11 @@ class OBJECT_OT_shell_reset_props(Operator):
         prefs = context.preferences.addons[ADDON_ID].preferences
         props = context.scene.shellgen_props
         
-        # Reset to addon preference defaults
+        for name in props.bl_rna.properties.keys():
+            if name not in ('rna_type', 'name'):
+                props.property_unset(name)
         props.offset = prefs.default_offset
         props.thickness = prefs.default_thickness
-        props.fast_mode = True
-        props.remesh_voxel_size = 0.5
-        props.open_bottom = True
-        props.auto_voxel_size = True
-        props.detail_level = 1.0
         
         self.report({'INFO'}, "Shell Generator properties reset to defaults")
         return {'FINISHED'}

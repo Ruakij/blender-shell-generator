@@ -117,4 +117,5 @@ class OBJECT_PT_shell_panel(Panel):
         box.label(text="Actions", icon='PLAY')
         row = box.row()
         row.scale_y = 2.0
-        op = row.operator("object.create_offset_shell", icon='CUBE')
+        row.operator("object.create_offset_shell", icon='CUBE')
+        box.operator("object.shell_reset_props", text="Reset Settings", icon='LOOP_BACK')
