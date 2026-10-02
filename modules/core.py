@@ -80,7 +80,7 @@ def setup_remesh_modifier(obj, voxel_size):
     return mod
 
 
-def setup_boolean_modifier(obj, operation='DIFFERENCE', solver='EXACT', target=None):
+def setup_boolean_modifier(obj, operation='DIFFERENCE', solver='EXACT', target=None, use_self=False):
     """
     Add and configure a boolean modifier on an object.
     
@@ -89,6 +89,8 @@ def setup_boolean_modifier(obj, operation='DIFFERENCE', solver='EXACT', target=N
         operation: Boolean operation type ('DIFFERENCE', 'UNION', or 'INTERSECT')
         solver: Solver type ('EXACT' or 'FAST')
         target: Target object for the boolean operation
+        use_self: Handle self-intersecting operands; makes the exact solver
+            many times slower and more memory hungry on dense meshes
         
     Returns:
         bpy.types.BooleanModifier: The created modifier
@@ -96,7 +98,7 @@ def setup_boolean_modifier(obj, operation='DIFFERENCE', solver='EXACT', target=N
     mod = obj.modifiers.new("Boolean", 'BOOLEAN')
     mod.operation = operation
     mod.solver = solver
-    mod.use_self = True
+    mod.use_self = use_self
     if target:
         mod.object = target
     return mod

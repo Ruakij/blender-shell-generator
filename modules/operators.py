@@ -372,7 +372,8 @@ class OBJECT_OT_create_shell(Operator):
                 mold,
                 operation='DIFFERENCE',
                 solver='FLOAT' if self._temp_data['fast_mode'] else 'EXACT',
-                target=cavity_target
+                target=cavity_target,
+                use_self='proxy' not in self._temp_data  # the original may self-intersect, a remeshed proxy cannot
             )
             
             if not self._temp_data['keep_modifiers']:
