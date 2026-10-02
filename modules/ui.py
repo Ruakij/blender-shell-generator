@@ -55,62 +55,51 @@ class OBJECT_PT_shell_panel(Panel):
             col.label(text="Please select a mesh object")
             return
 
-        # Basic Settings
-        box = layout.box()
-        box.label(text="Basic Settings", icon='PREFERENCES')
-        col = box.column(align=True)
+        col = layout.column(align=True)
         col.prop(props, "offset")
         col.prop(props, "thickness")
-        col.separator()
-        col.prop(props, "open_bottom")
+        layout.prop(props, "open_bottom")
 
-        # Advanced Settings
-        box = layout.box()
-        box.label(text="Advanced Settings", icon='SETTINGS')
-        
-        # Misc Settings
-        box_inner = box.box()
-        box_inner.label(text="Misc")
-        col = box_inner.column()
+        row = layout.row()
+        row.scale_y = 2.0
+        row.operator("object.create_offset_shell", icon='CUBE')
+        layout.operator("object.shell_reset_props", text="Reset Settings", icon='LOOP_BACK')
+
+
+class OBJECT_PT_shell_advanced(Panel):
+    """Collapsed subpanel for settings whose defaults rarely need changing."""
+
+    bl_label = "Advanced"
+    bl_idname = "OBJECT_PT_shell_advanced"
+    bl_parent_id = "OBJECT_PT_shell_panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "ShellGen"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        """Only display for a mesh object."""
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def draw(self, context):
+        """Draw the advanced settings."""
+        layout = self.layout
+        props = context.scene.shellgen_props
+
+        col = layout.column()
         col.prop(props, "combine_selected_for_proxy")
         col.prop(props, "even_thickness")
         if props.even_thickness:
-            col.label(text="Warning: May create artifacts", icon='ERROR')
-        
-        # Performance Settings
-        box_inner = box.box()
-        box_inner.label(text="Performance", icon='MOD_REMESH')
-        col = box_inner.column()
-        
-        # Fast Mode
+            col.label(text="May create artifacts", icon='ERROR')
         col.prop(props, "fast_mode")
-        if props.fast_mode:
-            col.label(text="Float solver for open or")
-            col.label(text="self-intersecting meshes")
-        
-        # Mesh Resolution section
-        box_inner = box.box()
-        box_inner.label(text="Mesh Resolution")
-        col = box_inner.column()
-        
-        # Auto Voxel Size
+
+        col = layout.column()
         col.prop(props, "auto_voxel_size")
-        
         if props.auto_voxel_size:
             col.prop(props, "detail_level", slider=True)
-            
-            # Show estimated voxel size
-            obj = context.active_object
-            if obj and obj.type == 'MESH':
-                sample_size = calculate_optimal_voxel_size(obj, detail_level=props.detail_level)
-                col.label(text=f"Est. Size: {format_length(context, sample_size)}", icon='INFO')
+            sample_size = calculate_optimal_voxel_size(context.active_object, detail_level=props.detail_level)
+            col.label(text=f"Est. Size: {format_length(context, sample_size)}", icon='INFO')
         else:
             col.prop(props, "remesh_voxel_size")
-
-        # Actions section at the bottom
-        box = layout.box()
-        box.label(text="Actions", icon='PLAY')
-        row = box.row()
-        row.scale_y = 2.0
-        row.operator("object.create_offset_shell", icon='CUBE')
-        box.operator("object.shell_reset_props", text="Reset Settings", icon='LOOP_BACK')

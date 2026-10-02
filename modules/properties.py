@@ -131,13 +131,13 @@ class ShellGenProperties(PropertyGroup):
     )
     
     combine_selected_for_proxy: BoolProperty(
-        name="Combine Selected Meshes for Proxy",
+        name="Combine Selected",
         description="Join and remesh all selected meshes to create a single Boolean source",
         default=False,
     )
 
     even_thickness: BoolProperty(
-        name="Even Thickness (experimental)",
+        name="Even Thickness",
         description="Enable Blender's 'Even Thickness' for solidify modifiers (may create artifacts at sharp corners or complex geometry!)",
         default=False,
     )

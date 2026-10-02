@@ -39,7 +39,7 @@ A Blender add-on to generate shells with customizable offset and thickness for s
    - Sidebar panel: View3D > Sidebar > ShellGen
    - Object menu: Object > Shell Generator
    - Shortcut: Ctrl+Alt+S
-3. Adjust parameters as needed
+3. Set Offset and Thickness
 4. Click "Create Shell" to generate the shell
 
 ## Parameters
@@ -49,17 +49,14 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 - **Thickness**: Shell wall thickness
 - **Open Bottom**: Remove geometry below Z=0
 
-### Advanced Settings
-#### Misc Options
-- **Combine Selected Meshes**: Join multiple selected objects for shell creation
-- **Even Thickness (experimental)**: Help maintain thickness at sharp corners (may create artifacts)
-
-#### Performance Options
+### Advanced
+Collapsed by default; the defaults suit most meshes.
+- **Combine Selected**: Join all selected meshes into one remeshed source for the shell
+- **Even Thickness**: Help maintain thickness at sharp corners (experimental, may create artifacts)
 - **Fast Mode**: Cut the cavity of an open or self-intersecting mesh with the faster but less reliable Float boolean solver instead of Exact
-- **Mesh Resolution**:
-  - **Auto Voxel Size**: Automatically calculate optimal resolution
-    - **Detail Level**: Control the resolution when using auto mode
-  - **Manual Voxel Size**: Direct control over remesh resolution
+- **Auto Voxel Size**: Calculate the remesh resolution from the object size
+  - **Detail Level**: Scale the automatic voxel size (lower = finer)
+  - **Remesh Voxel Size**: Direct control over the remesh resolution when Auto Voxel Size is off
 
 All lengths follow the scene unit settings. The defaults (10 offset, 5 thickness) are in Blender Units, which matches millimetres for STL files imported at scale 1.
 
@@ -70,10 +67,10 @@ All lengths follow the scene unit settings. The defaults (10 offset, 5 thickness
 
 - Very complex meshes may require more processing time or even run Blender out of memory
    - Consider using lower resolution meshes or simplifying geometry to improve performance
-   - You can also try using the "Fast Mode" and coarser "Mesh Resolution" setting
+   - "Fast Mode" and a coarser voxel size under Advanced also help
 - The cavity is cut with the fast Manifold boolean solver only if the original mesh is closed and free of self-intersections; otherwise the much slower and more memory hungry Exact solver is used
     - For best results, ensure input meshes are clean and manifold
-    - Alternatively you can try to use the "Combine Selected Meshes" to use a clean mesh internally (also works for single meshes)
+    - Alternatively, "Combine Selected" builds a clean remeshed source internally (also works for single meshes)
 - At sharp corners, the shell offset and/or thickness may be smaller than requested.
     - Enabling "Even Thickness" can help maintain minimum thickness, but may introduce artifacts, especially in complex geometry.
 

@@ -23,6 +23,7 @@ classes = (
     # UI
     ui.VIEW3D_MT_shell_gen_menu,
     ui.OBJECT_PT_shell_panel,
+    ui.OBJECT_PT_shell_advanced,
 )
 
 # Add-on keymap
