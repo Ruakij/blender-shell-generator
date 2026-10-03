@@ -251,65 +251,60 @@ class OBJECT_PT_shell_panel(Panel):
         col.prop(props, "thickness")
         layout.prop(props, "open_bottom")
 
-        try:
-            for text, icon in checks(context):
-                draw_wrapped(layout, context, text, icon)
-        except Exception:
-            traceback.print_exc()
-            layout.label(text="Checks unavailable", icon='ERROR')
-
+        # Subpanel and layout panel headers indent their arrow; this toggle lines it up
+        # with the settings, and the button after it stays put while warnings come and go
         row = layout.row()
-        row.scale_y = 2.0
-        row.operator("object.create_offset_shell")
+        row.alignment = 'LEFT'
+        row.prop(props, "show_advanced", emboss=False,
+                    icon='DOWNARROW_HLT' if props.show_advanced else 'RIGHTARROW')
+        if props.show_advanced:
+            draw_advanced(layout.box(), context)
+        draw_create(layout, context)
 
 
-class OBJECT_PT_shell_advanced(Panel):
-    """Collapsed subpanel for settings whose defaults rarely need changing."""
+def draw_advanced(layout, context):
+    """Draw the settings whose defaults rarely need changing."""
+    props = context.scene.shellgen_props
+    col = layout.column()
+    col.prop(props, "combine_selected_for_proxy")
+    col.prop(props, "even_thickness")
+    if props.even_thickness:
+        col.label(text="May create artifacts", icon='ERROR')
+    solver = cavity(context)[0]
+    # Fast Mode only picks between the solvers for an open or self-intersecting mesh
+    row = col.row()
+    row.active = solver != "Manifold"
+    row.prop(props, "fast_mode")
+    # The tooltip is static, so the hint says why Fast Mode is greyed out
+    if solver == "Manifold":
+        reason = "with Combine Selected" if is_combined(context) else "on a closed mesh without self-intersections"
+        hint(col, context, f"Cavity solver: Manifold. Fast Mode has no effect {reason}")
+    elif solver:
+        hint(col, context, f"Cavity solver: {solver}")
 
-    bl_label = "Advanced"
-    bl_idname = "OBJECT_PT_shell_advanced"
-    bl_parent_id = "OBJECT_PT_shell_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "ShellGen"
-    bl_options = {'DEFAULT_CLOSED'}
+    col = layout.column()
+    col.prop(props, "auto_voxel_size")
+    if props.auto_voxel_size:
+        col.prop(props, "detail_level", slider=True)
+    else:
+        col.prop(props, "remesh_voxel_size")
+    voxel, per_axis, _, raised = remesh_voxel_size(context)
+    if props.auto_voxel_size or raised:
+        prefix = "Auto" if props.auto_voxel_size else "Raised"
+        hint(col, context, f"{prefix}: {format_length(context, voxel)} ({per_axis} per axis)")
 
-    @classmethod
-    def poll(cls, context):
-        """Only display when there is a mesh to build from."""
-        return source_problem(context) is None
+    layout.operator("object.shell_reset_props", text="Reset Settings", icon='LOOP_BACK')
 
-    def draw(self, context):
-        """Draw the advanced settings."""
-        layout = self.layout
-        props = context.scene.shellgen_props
 
-        col = layout.column()
-        col.prop(props, "combine_selected_for_proxy")
-        col.prop(props, "even_thickness")
-        if props.even_thickness:
-            col.label(text="May create artifacts", icon='ERROR')
-        solver = cavity(context)[0]
-        # Fast Mode only picks between the solvers for an open or self-intersecting mesh
-        row = col.row()
-        row.active = solver != "Manifold"
-        row.prop(props, "fast_mode")
-        # The tooltip is static, so the hint says why Fast Mode is greyed out
-        if solver == "Manifold":
-            reason = "with Combine Selected" if is_combined(context) else "on a closed mesh without self-intersections"
-            hint(col, context, f"Cavity solver: Manifold. Fast Mode has no effect {reason}")
-        elif solver:
-            hint(col, context, f"Cavity solver: {solver}")
+def draw_create(layout, context):
+    """Draw the Create Shell button and the warnings below it."""
+    row = layout.row()
+    row.scale_y = 2.0
+    row.operator("object.create_offset_shell")
 
-        col = layout.column()
-        col.prop(props, "auto_voxel_size")
-        if props.auto_voxel_size:
-            col.prop(props, "detail_level", slider=True)
-        else:
-            col.prop(props, "remesh_voxel_size")
-        voxel, per_axis, _, raised = remesh_voxel_size(context)
-        if props.auto_voxel_size or raised:
-            prefix = "Auto" if props.auto_voxel_size else "Raised"
-            hint(col, context, f"{prefix}: {format_length(context, voxel)} ({per_axis} per axis)")
-
-        layout.operator("object.shell_reset_props", text="Reset Settings", icon='LOOP_BACK')
+    try:
+        for text, icon in checks(context):
+            draw_wrapped(layout, context, text, icon)
+    except Exception:
+        traceback.print_exc()
+        layout.label(text="Checks unavailable", icon='ERROR')

@@ -39,8 +39,8 @@ A Blender add-on to generate shells with customizable offset and thickness for s
    - Sidebar panel: View3D > Sidebar > ShellGen
    - Object menu: Object > Shell Generator
    - Shortcut: Ctrl+Alt+S
-3. Set Offset and Thickness
-4. Check the warnings above the "Create Shell" button, if any
+3. Set Offset and Thickness, and the Advanced settings below them if needed
+4. Check the warnings below the "Create Shell" button, if any
 5. Click "Create Shell" to generate the shell. If the warnings include errors, a dialog lists them first, also when run from the menu or the shortcut
 
 <img src="docs/images/panel.png" width="280"><br>
@@ -49,7 +49,7 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 The shell is built from the meshes as the viewport shows them, with modifiers and shape keys applied. Mold and shell come without modifiers, shape keys or parent. Only one run can be active at a time; a failed run removes everything it created.
 
 ### Warnings
-Warnings appear above the "Create Shell" button when something may give a poor or slow result, marked as an error when the result would be broken, lose geometry or cost a lot of time and memory, and as a note when it only looks unintended or may lower the quality. Only errors open the confirmation dialog:
+Warnings appear below the "Create Shell" button, so the button keeps its place, when something may give a poor or slow result, marked as an error when the result would be broken, lose geometry or cost a lot of time and memory, and as a note when it only looks unintended or may lower the quality. Only errors open the confirmation dialog:
 - an open mesh (non-manifold edges) or a self-intersecting mesh, which need the slower Exact solver (or Float with Fast Mode); "Combine Selected" avoids both
 - a voxel size above half the offset, for example when Max Voxels per Axis forces it on a large object with a small offset
 - an object starting above Z=0 with Open Bottom on: the cut does not reach the cavity, which stays closed at the bottom

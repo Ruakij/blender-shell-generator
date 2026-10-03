@@ -438,7 +438,8 @@ class OBJECT_OT_shell_reset_props(Operator):
         props = context.scene.shellgen_props
         
         for name in props.bl_rna.properties.keys():
-            if name not in ('rna_type', 'name'):
+            # Reset Settings sits in Advanced, which stays open
+            if name not in ('rna_type', 'name', 'show_advanced'):
                 props.property_unset(name)
         props.offset = prefs.default_offset
         props.thickness = prefs.default_thickness

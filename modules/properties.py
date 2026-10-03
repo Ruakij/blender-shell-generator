@@ -130,6 +130,12 @@ class ShellGenProperties(PropertyGroup):
         unit='LENGTH'
     )
     
+    show_advanced: BoolProperty(
+        name="Advanced",
+        description="Show the settings whose defaults rarely need changing",
+        default=False,
+    )
+
     combine_selected_for_proxy: BoolProperty(
         name="Combine Selected",
         description="Join and remesh all selected meshes to create a single Boolean source",
