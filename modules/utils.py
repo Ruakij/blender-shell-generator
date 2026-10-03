@@ -1,5 +1,7 @@
 """Utility functions for the Shell Generator addon."""
 
+import math
+import textwrap
 import bpy
 from mathutils import Vector
 from .. import ADDON_ID
@@ -59,6 +61,19 @@ def source_objects(context):
     return [context.active_object]
 
 
+def source_problem(context):
+    """Why no shell can be built from the current selection, or None."""
+    obj = context.active_object
+    if obj is None or obj.type != 'MESH':
+        return "Select a mesh object"
+    # The active object stays set after deselecting everything
+    if not all(o.select_get() for o in source_objects(context)):
+        return "Select a mesh object"
+    if not any(o.data.polygons for o in source_objects(context)):
+        return "The mesh has no faces"
+    return None
+
+
 def remesh_voxel_size(context):
     """
     Voxel size the operator remeshes with.
@@ -83,12 +98,44 @@ def remesh_voxel_size(context):
     return voxel, round(max_voxels * floor / voxel), bound, raised
 
 
+_UNIT_SYMBOLS = {
+    'KILOMETERS': 'km', 'METERS': 'm', 'CENTIMETERS': 'cm', 'MILLIMETERS': 'mm', 'MICROMETERS': 'um',
+    'MILES': 'mi', 'FEET': 'ft', 'INCHES': 'in', 'THOU': 'thou',
+}
+
+
 def format_length(context, value_bu):
-    """Format a length in Blender Units using the scene unit settings."""
+    """Format a length in Blender Units in the scene's length unit, or adaptively when it has none."""
     unit_settings = context.scene.unit_settings
-    return bpy.utils.units.to_string(
-        unit_settings.system, 'LENGTH', value_bu * unit_settings.scale_length, precision=3
-    )
+    value = value_bu * unit_settings.scale_length
+    symbol = _UNIT_SYMBOLS.get(unit_settings.length_unit)
+    # to_string always picks its own unit, ignoring the scene's chosen one
+    if unit_settings.system == 'NONE' or symbol is None:
+        return bpy.utils.units.to_string(unit_settings.system, 'LENGTH', value, precision=3).strip()
+    factor = bpy.utils.units.to_value(unit_settings.system, 'LENGTH', '1' + symbol)
+    value /= factor
+    # three significant digits, but never round away whole units
+    decimals = max(0, 2 - math.floor(math.log10(abs(value)))) if value else 0
+    text = f"{value:.{decimals}f}"
+    if decimals:
+        text = text.rstrip('0').rstrip('.')
+    return f"{text} {symbol}"
+
+
+def draw_wrapped(layout, context, text, icon, width=None):
+    """
+    Draw text as labels wrapped to width, by default the region width. Only the
+    first line carries the icon; the others start with a blank one, aligned under its text.
+    """
+    width = width or (context.region.width if context.region else 300)
+    # Roughly 7 px per character at UI scale 1, less the panel margins and the icon;
+    # the system scale includes the pixel size of HiDPI displays and is 0 without a window
+    chars = max(16, int((width - 40) / (7 * (context.preferences.system.ui_scale or 1))))
+    col = layout.column(align=True)
+    # Tighter than separate labels, so each text reads as one paragraph
+    col.scale_y = 0.75
+    for i, line in enumerate(textwrap.wrap(text, chars)):
+        col.label(text=line, icon=icon if i == 0 else 'BLANK1')
 
 
 def validate_mesh(obj):

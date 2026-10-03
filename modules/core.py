@@ -148,18 +148,58 @@ def mesh_defects(obj, depsgraph):
     handle; it silently leaves the target unchanged on such an operand.
 
     Returns:
-        tuple: (closed, self_intersecting)
+        tuple: (closed, self_intersecting, inverted), inverted meaning the
+            normals of a closed mesh point inward
     """
     bm = bmesh.new()
     bm.from_object(obj, depsgraph)
     closed = all(e.is_manifold for e in bm.edges)
+    inverted = closed and bm.calc_volume(signed=True) < 0
     bm.verts.index_update()
     tris = [[l.vert.index for l in tri] for tri in bm.calc_loop_triangles()]
     tree = BVHTree.FromPolygons([v.co for v in bm.verts], tris)
     bm.free()
     # overlap() also reports neighbouring triangles, which only touch
     self_intersecting = any(not set(tris[a]) & set(tris[b]) for a, b in tree.overlap(tree))
-    return closed, self_intersecting
+    return closed, self_intersecting, inverted
+
+
+# mesh_defects takes about 1.6 us per face; this keeps a panel redraw under about 20 ms
+AUTO_ANALYZE_FACE_COUNT = 10_000
+
+_defects_cache = {}
+
+
+def cached_mesh_defects(obj, depsgraph, compute):
+    """
+    mesh_defects cached per object for the panel.
+
+    Returns:
+        tuple: see mesh_defects, or None when not cached and compute is False
+    """
+    fingerprint = (
+        obj.data.as_pointer(),
+        len(obj.data.vertices), len(obj.data.edges), len(obj.data.polygons),
+        tuple(map(tuple, obj.matrix_world)),
+        tuple((m.name, m.type, m.show_viewport) for m in obj.modifiers),
+    )
+    cached = _defects_cache.get(obj.name)
+    if cached and cached[0] == fingerprint:
+        return cached[1]
+    if not compute:
+        return None
+    defects = mesh_defects(obj, depsgraph)
+    _defects_cache[obj.name] = (fingerprint, defects)
+    return defects
+
+
+@bpy.app.handlers.persistent
+def clear_defects_cache(scene, depsgraph):
+    """depsgraph_update_post handler dropping the analysis of changed mesh objects."""
+    for update in depsgraph.updates:
+        if (isinstance(update.id, bpy.types.Object) and update.id.type == 'MESH'
+                and (update.is_updated_geometry or update.is_updated_transform)):
+            _defects_cache.pop(update.id.name, None)
 
 
 def cleanup_objects(objects_to_remove):

@@ -1,7 +1,14 @@
 """UI components for the Shell Generator addon."""
 
+import traceback
 from bpy.types import Panel, Menu
-from .utils import format_length, remesh_voxel_size
+from mathutils import Vector
+from .. import ADDON_ID
+from .core import AUTO_ANALYZE_FACE_COUNT, cached_mesh_defects
+from .utils import draw_wrapped, format_length, remesh_voxel_size, source_objects, source_problem
+
+# A 1M-face sphere took 12 s and 7.6 GB with the Manifold solver
+DENSE_FACE_COUNT = 1_000_000
 
 
 class VIEW3D_MT_shell_gen_menu(Menu):
@@ -21,6 +28,130 @@ def draw_shell_gen_menu(self, context):
     layout = self.layout
     layout.separator()
     layout.menu(VIEW3D_MT_shell_gen_menu.bl_idname, icon='MESH_CUBE')
+
+
+def is_combined(context):
+    """Whether Combine Selected builds a remeshed proxy from the selection."""
+    return (context.scene.shellgen_props.combine_selected_for_proxy
+            and any(o.type == 'MESH' for o in context.selected_objects))
+
+
+def cavity(context):
+    """
+    The boolean solver the cavity cut will use. Reads only metadata; the mesh
+    checks run for small meshes or after Check Now.
+
+    Returns:
+        tuple: (solver name, or None until the mesh is analyzed,
+            (closed, self_intersecting, inverted) or None)
+    """
+    if is_combined(context):
+        return "Manifold", None
+    obj = context.active_object
+    # Modifiers can multiply the evaluated face count, so only bare small meshes are checked unasked
+    small = len(obj.data.polygons) <= AUTO_ANALYZE_FACE_COUNT and not any(m.show_viewport for m in obj.modifiers)
+    try:
+        defects = cached_mesh_defects(obj, context.evaluated_depsgraph_get() if small else None, small)
+    except Exception:
+        traceback.print_exc()
+        defects = None
+    if defects is None:
+        return None, None
+    closed, self_intersecting, _ = defects
+    if closed and not self_intersecting:
+        return "Manifold", defects
+    return ("Float" if context.scene.shellgen_props.fast_mode else "Exact"), defects
+
+
+def checks(context):
+    """
+    What may give a poor or slow result with the current settings.
+
+    Returns:
+        list: (text, icon) tuples, icon 'ERROR' for a broken, lost or very costly result,
+            'INFO' for what only looks unintended or may lower the quality
+    """
+    props = context.scene.shellgen_props
+    obj = context.active_object
+    fmt = lambda value: format_length(context, value)
+    sources = source_objects(context)
+    selected = [o for o in context.selected_objects if o.type == 'MESH']
+    proxy = is_combined(context)
+    warnings = []
+
+    if not proxy and len(selected) > 1:
+        warnings.append((f"{len(selected)} meshes selected, only {obj.name} is used. "
+                         "Advanced > Combine Selected joins them", 'INFO'))
+    if props.combine_selected_for_proxy:
+        others = len(context.selected_objects) - len(selected)
+        if others:
+            warnings.append((f"{others} non-mesh objects ignored", 'INFO'))
+        if proxy and obj not in selected:
+            warnings.append((f"{obj.name} is active but not selected, so it is not combined", 'INFO'))
+
+    def extent(objects):
+        corners = [o.matrix_world @ Vector(c) for o in objects for c in o.bound_box]
+        return max(max(c[i] for c in corners) - min(c[i] for c in corners) for i in range(3))
+
+    size = extent(sources)
+    if len(sources) > 1 and size > 3 * max(extent([o]) for o in sources):
+        warnings.append(("Combined meshes lie far apart: the remesh grid spans all of them, "
+                         "so the voxel gets coarse", 'INFO'))
+    if props.offset + props.thickness > size:
+        warnings.append((f"Offset plus thickness ({fmt(props.offset + props.thickness)}) exceed the object size "
+                         f"({fmt(size)}): the sizes look wrong for this scene", 'INFO'))
+    prefs = context.preferences.addons[ADDON_ID].preferences
+    unit_scale = context.scene.unit_settings.scale_length
+    if unit_scale != 1 and (props.offset, props.thickness) == (prefs.default_offset, prefs.default_thickness):
+        warnings.append((f"Default offset and thickness with a unit scale of {unit_scale:g}: "
+                         "check that the sizes fit this scene", 'INFO'))
+
+    voxel, _, bound, raised = remesh_voxel_size(context)
+    if voxel > bound:
+        if raised:
+            warnings.append((f"The Max Voxels per Axis preference forces a voxel above half the offset ({fmt(bound)}), "
+                             "so the gap may come out uneven. Raise the limit or the offset", 'INFO'))
+        else:
+            warnings.append((f"Voxel size is above half the offset ({fmt(bound)}), "
+                             "so the gap may come out uneven", 'INFO'))
+
+    solver, defects = cavity(context)
+    if defects:
+        closed, self_intersecting, inverted = defects
+        if not closed:
+            effect = "will be less reliable" if props.fast_mode else "will be slow"
+            warnings.append((f"Open mesh: the {solver} solver {effect}. "
+                             "Advanced > Combine Selected avoids it", 'ERROR'))
+        if self_intersecting:
+            effect = "may cut it wrong" if props.fast_mode else "will be much slower"
+            warnings.append((f"Self-intersecting mesh: the {solver} solver {effect}. "
+                             "Advanced > Combine Selected avoids it", 'ERROR'))
+        # Solidify then offsets inward and the cavity cut removes the mold
+        if inverted:
+            warnings.append(("Normals point inward - recalculate normals first", 'ERROR'))
+
+    if props.open_bottom:
+        zs = [(o.matrix_world @ Vector(c)).z for o in sources for c in o.bound_box]
+        # The cutter ends at Z=0.001, see create_cutter_object
+        if max(zs) <= 0.001:
+            warnings.append(("Object lies below Z=0: the cut removes the cavity and leaves "
+                             "little or nothing of mold and shell", 'ERROR'))
+        elif min(zs) > 0.001:
+            warnings.append((f"Object starts {fmt(min(zs))} above Z=0: the cut does not reach "
+                             "the cavity, which stays closed at the bottom", 'INFO'))
+
+    faces = sum(len(o.data.polygons) for o in sources)
+    if faces > DENSE_FACE_COUNT:
+        warnings.append((f"Dense mesh ({faces:,} faces): the run takes long and needs a lot of memory", 'ERROR'))
+
+    return warnings
+
+
+def hint(layout, context, text):
+    """Draw text greyed out, for values the add-on chooses on its own."""
+    col = layout.column(align=True)
+    col.active = False
+    draw_wrapped(col, context, text, 'INFO')
 
 
 class OBJECT_PT_shell_panel(Panel):
@@ -47,12 +178,9 @@ class OBJECT_PT_shell_panel(Panel):
         layout = self.layout
         props = context.scene.shellgen_props
         
-        # Check if there's a valid mesh object selected
-        obj = context.active_object
-        if obj is None or obj.type != 'MESH':
-            col = layout.column()
-            col.label(text="No mesh selected", icon='ERROR')
-            col.label(text="Please select a mesh object")
+        problem = source_problem(context)
+        if problem:
+            layout.label(text=problem, icon='ERROR')
             return
 
         col = layout.column(align=True)
@@ -60,10 +188,16 @@ class OBJECT_PT_shell_panel(Panel):
         col.prop(props, "thickness")
         layout.prop(props, "open_bottom")
 
+        try:
+            for text, icon in checks(context):
+                draw_wrapped(layout, context, text, icon)
+        except Exception:
+            traceback.print_exc()
+            layout.label(text="Checks unavailable", icon='ERROR')
+
         row = layout.row()
         row.scale_y = 2.0
-        row.operator("object.create_offset_shell", icon='CUBE')
-        layout.operator("object.shell_reset_props", text="Reset Settings", icon='LOOP_BACK')
+        row.operator("object.create_offset_shell")
 
 
 class OBJECT_PT_shell_advanced(Panel):
@@ -79,9 +213,8 @@ class OBJECT_PT_shell_advanced(Panel):
 
     @classmethod
     def poll(cls, context):
-        """Only display for a mesh object."""
-        obj = context.active_object
-        return obj is not None and obj.type == 'MESH'
+        """Only display when there is a mesh to build from."""
+        return source_problem(context) is None
 
     def draw(self, context):
         """Draw the advanced settings."""
@@ -94,11 +227,19 @@ class OBJECT_PT_shell_advanced(Panel):
         if props.even_thickness:
             col.label(text="May create artifacts", icon='ERROR')
         col.prop(props, "fast_mode")
+        solver = cavity(context)[0]
+        if solver:
+            hint(col, context, f"Cavity solver: {solver}")
 
         col = layout.column()
         col.prop(props, "auto_voxel_size")
         if props.auto_voxel_size:
             col.prop(props, "detail_level", slider=True)
-            col.label(text=f"Est. Size: {format_length(context, remesh_voxel_size(context)[0])}", icon='INFO')
         else:
             col.prop(props, "remesh_voxel_size")
+        voxel, per_axis, _, raised = remesh_voxel_size(context)
+        if props.auto_voxel_size or raised:
+            prefix = "Auto" if props.auto_voxel_size else "Raised"
+            hint(col, context, f"{prefix}: {format_length(context, voxel)} ({per_axis} per axis)")
+
+        layout.operator("object.shell_reset_props", text="Reset Settings", icon='LOOP_BACK')

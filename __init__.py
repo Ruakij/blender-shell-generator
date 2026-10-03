@@ -5,6 +5,7 @@ from bpy.utils import register_class, unregister_class
 ADDON_ID = __package__
 
 from .modules import (
+    core,
     operators,
     properties,
     ui,
@@ -40,6 +41,8 @@ def register():
     
     # Register menu
     bpy.types.VIEW3D_MT_object.append(ui.draw_shell_gen_menu)
+
+    bpy.app.handlers.depsgraph_update_post.append(core.clear_defects_cache)
     
     # Handle the keymaps
     wm = bpy.context.window_manager
@@ -67,6 +70,8 @@ def unregister():
     
     # Remove menu
     bpy.types.VIEW3D_MT_object.remove(ui.draw_shell_gen_menu)
+
+    bpy.app.handlers.depsgraph_update_post.remove(core.clear_defects_cache)
     
     # Unregister properties
     del bpy.types.Scene.shellgen_props

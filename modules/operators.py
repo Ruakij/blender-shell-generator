@@ -1,10 +1,12 @@
 """Operator classes for the Shell Generator addon."""
 
+import traceback
 import bpy
 from bpy.types import Operator
 from mathutils import Matrix
 from .. import ADDON_ID
-from .utils import format_length, remesh_voxel_size, source_objects, validate_mesh
+from .ui import checks, is_combined
+from .utils import draw_wrapped, format_length, remesh_voxel_size, source_objects, source_problem
 from .core import (
     prepare_object_for_shell,
     create_cutter_object,
@@ -13,6 +15,7 @@ from .core import (
     setup_remesh_modifier,
     setup_boolean_modifier,
     mesh_defects,
+    cached_mesh_defects,
     cleanup_objects,
     setup_3d_print_toolbox,
 )
@@ -33,8 +36,10 @@ class OBJECT_OT_create_shell(Operator):
         if cls._running:
             cls.poll_message_set("A shell is being generated")
             return False
-        obj = context.active_object
-        return obj is not None and obj.type == 'MESH'
+        problem = source_problem(context)
+        if problem:
+            cls.poll_message_set(problem)
+        return problem is None
 
     def initialize_steps(self, context):
         """Capture the settings and source objects of this run and initialize its steps."""
@@ -115,7 +120,6 @@ class OBJECT_OT_create_shell(Operator):
                     
                 except Exception as e:
                     self.report({'ERROR'}, f"Error during {step_id}: {str(e)}")
-                    import traceback
                     traceback.print_exc()
                     self.cleanup_and_finish(context, success=False)
                     return {'CANCELLED'}
@@ -128,9 +132,28 @@ class OBJECT_OT_create_shell(Operator):
         return {'PASS_THROUGH'}
     
     def invoke(self, context, event):
+        """Ask for confirmation when the warnings of the panel include errors, then run."""
+        try:
+            # The panel skips the mesh checks on large meshes; clicking Create is consent to run them
+            if not is_combined(context):
+                cached_mesh_defects(context.active_object, context.evaluated_depsgraph_get(), compute=True)
+            self._warnings = checks(context)
+        except Exception:
+            traceback.print_exc()
+            self._warnings = []
+        if any(icon == 'ERROR' for _, icon in self._warnings):
+            return context.window_manager.invoke_props_dialog(
+                self, width=450, title="Create Shell despite these warnings?", confirm_text="Create Shell")
+        return self.execute(context)
+
+    def draw(self, context):
+        """List the warnings in the confirmation dialog."""
+        for text, icon in getattr(self, '_warnings', ()):
+            draw_wrapped(self.layout, context, text, icon, width=450 * context.preferences.system.ui_scale)
+
+    def execute(self, context):
         """Start the modal execution."""
         try:
-            validate_mesh(context.active_object)
             self.initialize_steps(context)
             
             wm = context.window_manager
@@ -332,7 +355,10 @@ class OBJECT_OT_create_shell(Operator):
             # A remeshed proxy is always closed and free of self-intersections
             solver, use_self = 'MANIFOLD', False
             if 'proxy' not in self._temp_data:
-                closed, self_intersecting = mesh_defects(cavity_target, context.evaluated_depsgraph_get())
+                depsgraph = context.evaluated_depsgraph_get()
+                # The source is built from the original, so the checks of the dialog still hold
+                closed, self_intersecting, _ = (cached_mesh_defects(self._temp_data['original'], depsgraph, compute=False)
+                                                or mesh_defects(cavity_target, depsgraph))
                 if not closed or self_intersecting:
                     solver = 'FLOAT' if self._temp_data['fast_mode'] else 'EXACT'
                     use_self = self_intersecting  # makes Exact many times slower, so only when needed
