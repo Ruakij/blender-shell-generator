@@ -72,6 +72,8 @@ def unregister():
     bpy.types.VIEW3D_MT_object.remove(ui.draw_shell_gen_menu)
 
     bpy.app.handlers.depsgraph_update_post.remove(core.clear_defects_cache)
+    if bpy.app.timers.is_registered(ui.run_analysis):
+        bpy.app.timers.unregister(ui.run_analysis)
     
     # Unregister properties
     del bpy.types.Scene.shellgen_props

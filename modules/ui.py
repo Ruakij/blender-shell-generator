@@ -1,14 +1,19 @@
 """UI components for the Shell Generator addon."""
 
+import time
 import traceback
+import bpy
 from bpy.types import Panel, Menu
 from mathutils import Vector
 from .. import ADDON_ID
-from .core import AUTO_ANALYZE_FACE_COUNT, cached_mesh_defects
+from .core import AUTO_ANALYZE_FACE_COUNT, DEFERRED_ANALYZE_FACE_COUNT, cached_mesh_defects
 from .utils import draw_wrapped, format_length, remesh_voxel_size, source_objects, source_problem
 
 # A 1M-face sphere took 12 s and 7.6 GB with the Manifold solver
 DENSE_FACE_COUNT = 1_000_000
+# Deferred checks wait this long after the last request for another mesh, so clicking
+# through objects never runs one per click
+ANALYZE_DELAY = 0.3
 
 
 class VIEW3D_MT_shell_gen_menu(Menu):
@@ -36,10 +41,64 @@ def is_combined(context):
             and any(o.type == 'MESH' for o in context.selected_objects))
 
 
+def analysis(obj):
+    """
+    When the panel checks obj: 'now' in the redraw, 'deferred' shortly after the
+    changes stop, or None for a mesh only Create Shell checks.
+    """
+    # Array or Geometry Nodes can multiply the faces without bound, and reading the evaluated
+    # count builds the subdivided mesh that GPU subdivision skips, so no count is cheap to know
+    if any(m.show_viewport for m in obj.modifiers):
+        return None
+    faces = len(obj.data.polygons)
+    if faces <= AUTO_ANALYZE_FACE_COUNT:
+        return 'now'
+    return 'deferred' if faces <= DEFERRED_ANALYZE_FACE_COUNT else None
+
+
+_analyze_after = 0.0
+_analyze_for = None
+
+
+def request_analysis(obj):
+    """Check the active mesh ANALYZE_DELAY after the first request for it."""
+    global _analyze_after, _analyze_for
+    # Every mouse move over the sidebar redraws the panel, which would postpone the check forever
+    if _analyze_for == obj.name and bpy.app.timers.is_registered(run_analysis):
+        return
+    _analyze_for = obj.name
+    _analyze_after = time.monotonic() + ANALYZE_DELAY
+    if not bpy.app.timers.is_registered(run_analysis):
+        bpy.app.timers.register(run_analysis, first_interval=ANALYZE_DELAY)
+
+
+def run_analysis():
+    """Timer behind request_analysis."""
+    wait = _analyze_after - time.monotonic()
+    if wait > 0:
+        return wait
+    context = bpy.context
+    obj = context.view_layer.objects.active
+    try:
+        # The selection may have changed since the request
+        if (obj and obj.type == 'MESH' and obj.mode == 'OBJECT' and not is_combined(context)
+                and analysis(obj) == 'deferred'):
+            cached_mesh_defects(obj, context.evaluated_depsgraph_get(), compute=True)
+    except Exception:
+        # Without the redraw no new request comes until the next change, so a failure is not retried in a loop
+        traceback.print_exc()
+        return None
+    for window in context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+    return None
+
+
 def cavity(context):
     """
     The boolean solver the cavity cut will use. Reads only metadata; the mesh
-    checks run for small meshes or after Check Now.
+    checks run in the redraw for small meshes and shortly after it for larger ones.
 
     Returns:
         tuple: (solver name, or None until the mesh is analyzed,
@@ -48,10 +107,11 @@ def cavity(context):
     if is_combined(context):
         return "Manifold", None
     obj = context.active_object
-    # Modifiers can multiply the evaluated face count, so only bare small meshes are checked unasked
-    small = len(obj.data.polygons) <= AUTO_ANALYZE_FACE_COUNT and not any(m.show_viewport for m in obj.modifiers)
     try:
-        defects = cached_mesh_defects(obj, context.evaluated_depsgraph_get() if small else None, small)
+        mode = analysis(obj)
+        defects = cached_mesh_defects(obj, context.evaluated_depsgraph_get() if mode == 'now' else None, mode == 'now')
+        if defects is None and mode == 'deferred':
+            request_analysis(obj)
     except Exception:
         traceback.print_exc()
         defects = None
@@ -129,6 +189,9 @@ def checks(context):
         # Solidify then offsets inward and the cavity cut removes the mold
         if inverted:
             warnings.append(("Normals point inward - recalculate normals first", 'ERROR'))
+    elif not proxy and analysis(obj) is None:
+        kind = "Mesh with modifiers" if any(m.show_viewport for m in obj.modifiers) else "Large mesh"
+        warnings.append((f"{kind}, not fully checked: more warnings may appear on Create Shell", 'INFO'))
 
     if props.open_bottom:
         zs = [(o.matrix_world @ Vector(c)).z for o in sources for c in o.bound_box]

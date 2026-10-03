@@ -60,7 +60,7 @@ Warnings appear above the "Create Shell" button when something may give a poor o
 - with "Combine Selected": selected objects that are not meshes, which are ignored; an active object that is not selected, which is not part of the shell; and meshes lying far apart (together more than three times the size of the largest one), which coarsens the voxel size
 - a mesh above one million faces, where the run takes long and needs several GB of memory
 
-The checks for holes, self-intersections and inward normals read every face, so the panel runs them only for meshes up to 10,000 faces without enabled modifiers. For larger meshes "Create Shell" runs them first and lists their warnings in the dialog.
+The checks for holes, self-intersections and inward normals read every face. The panel runs them at once for meshes up to 10,000 faces and, for meshes up to 100,000 faces, shortly after the selection, the object or its mesh stop changing. Larger meshes and meshes with enabled modifiers are checked only by "Create Shell", which lists their warnings in the dialog; the panel notes that more warnings may appear then.
 
 "Create Shell" stays disabled while no mesh is selected (the active object alone does not count) or the mesh has no faces.
 

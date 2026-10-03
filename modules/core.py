@@ -164,8 +164,11 @@ def mesh_defects(obj, depsgraph):
     return closed, self_intersecting, inverted
 
 
-# mesh_defects takes about 1.6 us per face; this keeps a panel redraw under about 20 ms
+# mesh_defects takes about 2 us per face (UV spheres: 50k faces 106 ms, 100k 188 ms, 200k 451 ms);
+# this keeps a panel redraw under about 20 ms
 AUTO_ANALYZE_FACE_COUNT = 10_000
+# Larger meshes are checked shortly after changes stop, which pauses Blender for up to about 200 ms
+DEFERRED_ANALYZE_FACE_COUNT = 100_000
 
 _defects_cache = {}
 
