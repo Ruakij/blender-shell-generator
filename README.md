@@ -43,6 +43,9 @@ A Blender add-on to generate shells with customizable offset and thickness for s
 4. Check the warnings above the "Create Shell" button, if any
 5. Click "Create Shell" to generate the shell. If the warnings include errors, a dialog lists them first, also when run from the menu or the shortcut
 
+<img src="docs/images/panel.png" width="280"><br>
+*The sidebar panel with the Advanced settings expanded*.
+
 The shell is built from the meshes as the viewport shows them, with modifiers and shape keys applied. Mold and shell come without modifiers, shape keys or parent. Only one run can be active at a time; a failed run removes everything it created.
 
 ### Warnings
