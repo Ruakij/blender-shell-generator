@@ -183,7 +183,6 @@ def cached_mesh_defects(obj, depsgraph, compute):
     fingerprint = (
         obj.data.as_pointer(),
         len(obj.data.vertices), len(obj.data.edges), len(obj.data.polygons),
-        tuple(map(tuple, obj.matrix_world)),
         tuple((m.name, m.type, m.show_viewport) for m in obj.modifiers),
     )
     cached = _defects_cache.get(obj.name)
@@ -200,8 +199,7 @@ def cached_mesh_defects(obj, depsgraph, compute):
 def clear_defects_cache(scene, depsgraph):
     """depsgraph_update_post handler dropping the analysis of changed mesh objects."""
     for update in depsgraph.updates:
-        if (isinstance(update.id, bpy.types.Object) and update.id.type == 'MESH'
-                and (update.is_updated_geometry or update.is_updated_transform)):
+        if isinstance(update.id, bpy.types.Object) and update.id.type == 'MESH' and update.is_updated_geometry:
             _defects_cache.pop(update.id.name, None)
 
 
