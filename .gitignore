@@ -2,3 +2,4 @@
 !.gitignore
 !.github
 dist/
+__pycache__/
