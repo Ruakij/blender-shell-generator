@@ -39,30 +39,11 @@ A Blender add-on to generate shells with customizable offset and thickness for s
    - Sidebar panel: View3D > Sidebar > ShellGen
    - Object menu: Object > Shell Generator
    - Shortcut: Ctrl+Alt+S
-3. Set Offset and Thickness, and the Advanced settings below them if needed
-4. Check the warnings below the "Create Shell" button, if any
-5. Click "Create Shell" to generate the shell. If the warnings include errors, a dialog lists them first, also when run from the menu or the shortcut
+3. Adjust the settings as needed
+4. Click "Create Shell". Warnings below the button point out problems with the mesh or the settings; errors ask for confirmation first
 
 <img src="docs/images/panel.png" width="280"><br>
 *The sidebar panel with the Advanced settings expanded*.
-
-The shell is built from the meshes as the viewport shows them, with modifiers and shape keys applied. Mold and shell come without modifiers, shape keys or parent. Only one run can be active at a time; a failed run removes everything it created.
-
-### Warnings
-Warnings appear below the "Create Shell" button, so the button keeps its place, when something may give a poor or slow result, marked as an error when the result would be broken, lose geometry or cost a lot of time and memory, and as a note when it only looks unintended or may lower the quality. Only errors open the confirmation dialog:
-- an open mesh (non-manifold edges) or a self-intersecting mesh, which need the slower Exact solver (or Float with Fast Mode); "Combine Selected" avoids both
-- a voxel size above half the offset, for example when Max Voxels per Axis forces it on a large object with a small offset
-- an object starting above Z=0 with Open Bottom on: the cut does not reach the cavity, which stays closed at the bottom
-- an object entirely below Z=0 with Open Bottom on: the cut leaves little or nothing
-- normals pointing inward (a closed mesh with negative volume): the offset then goes inward and the cavity cut fails; recalculating the normals fixes it
-- offset plus thickness larger than the object, or the default offset and thickness in a scene with a unit scale other than 1: the sizes likely do not fit the scene
-- more than one mesh selected while "Combine Selected" is off: only the active object is used
-- with "Combine Selected": selected objects that are not meshes, which are ignored; an active object that is not selected, which is not part of the shell; and meshes lying far apart (together more than three times the size of the largest one), which coarsens the voxel size
-- a mesh above one million faces, where the run takes long and needs several GB of memory
-
-The checks for holes, self-intersections and inward normals read every face. The panel runs them at once for meshes up to 10,000 faces and, for meshes up to 100,000 faces, shortly after the selection, the object or its mesh stop changing. Larger meshes and meshes with enabled modifiers are checked only by "Create Shell", which lists their warnings in the dialog; the panel notes that more warnings may appear then.
-
-"Create Shell" stays disabled while no mesh is selected (the active object alone does not count) or the mesh has no faces.
 
 ## Parameters
 
@@ -72,31 +53,27 @@ The checks for holes, self-intersections and inward normals read every face. The
 - **Open Bottom**: Remove geometry below Z=0
 
 ### Advanced
-Collapsed by default; the defaults suit most meshes. "Reset Settings" at its bottom restores all settings.
-- **Combine Selected**: Join all selected meshes into one remeshed source for the shell
+- **Combine Selected**: Join all selected meshes into one clean, remeshed source (also helps single open or self-intersecting meshes)
 - **Even Thickness**: Help maintain thickness at sharp corners (experimental, may create artifacts)
-- **Fast Mode**: Cut the cavity of an open or self-intersecting mesh with the faster but less reliable Float boolean solver instead of Exact. It has no effect with Combine Selected or a clean mesh, whose cavity the Manifold solver cuts, and is greyed out then. The line below it shows the solver the cavity cut uses and, while Fast Mode is greyed out, why; it is hidden for a large mesh until Create checks it
-- **Auto Voxel Size**: Calculate the remesh resolution from the object size and complexity, at most half the offset. The remesh only rebuilds the offset layer and lands within about one voxel, so this keeps at least half the requested gap. The line below it shows the resulting voxel size and the voxels along the longest axis
-  - **Detail Level**: Scale the size-based voxel size (lower = finer)
-  - **Remesh Voxel Size**: Direct control over the remesh resolution when Auto Voxel Size is off; a line shows the size actually used when Max Voxels per Axis raises it
-
-All lengths follow the scene unit settings. The defaults (10 offset, 5 thickness) are in Blender Units, which matches millimetres for STL files imported at scale 1.
+- **Fast Mode**: Faster but less reliable processing of open or self-intersecting meshes; greyed out when it has no effect
+- **Auto Voxel Size**: Calculate the remesh resolution automatically
+  - **Detail Level**: Control the resolution in auto mode (lower = finer)
+  - **Remesh Voxel Size**: Direct control over the remesh resolution
+- **Reset Settings**: Restore the defaults
 
 ### Add-on Preferences
-- **Max Voxels per Axis**: Upper limit for the remesh resolution (default 250). Time and memory of the boolean cuts on the remeshed result grow with the square of this value; voxel sizes finer than the limit allows are raised automatically
+- **Max Voxels per Axis**: Upper limit for the remesh resolution; higher values allow finer detail on large objects but cost time and memory
 
 ## Known Issues
 
 - Very complex meshes may require more processing time or even run Blender out of memory
    - Consider using lower resolution meshes or simplifying geometry to improve performance
-   - "Fast Mode" and a coarser voxel size under Advanced also help
-- The cavity is cut with the fast Manifold boolean solver only if the original mesh is closed and free of self-intersections; otherwise the much slower and more memory hungry Exact solver is used
+   - "Fast Mode" and a coarser voxel size also help
+- Open or self-intersecting meshes are processed much slower
     - For best results, ensure input meshes are clean and manifold
-    - Alternatively, "Combine Selected" builds a clean remeshed source internally (also works for single meshes)
+    - Alternatively, "Combine Selected" builds a clean mesh internally (also works for single meshes)
 - At sharp corners, the shell offset and/or thickness may be smaller than requested.
     - Enabling "Even Thickness" can help maintain minimum thickness, but may introduce artifacts, especially in complex geometry.
-- A thick shell around a concave object can fill or bridge the concave parts; no check warns about it
-- The open bottom always cuts at Z=0 of the world
 
 ## Development
 
