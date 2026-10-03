@@ -101,7 +101,7 @@ class ShellGenProperties(PropertyGroup):
     
     fast_mode: BoolProperty(
         name="Fast Mode",
-        description="Cut the cavity of an open or self-intersecting mesh with the faster but less reliable Float boolean solver instead of Exact. Clean meshes and combined proxies always use the Manifold solver",
+        description="Cut the cavity of an open or self-intersecting mesh with the faster but less reliable Float boolean solver instead of Exact. Has no effect, and is greyed out, with Combine Selected or a closed mesh without self-intersections, which always use the Manifold solver",
         default=False,
     )
     

@@ -289,9 +289,16 @@ class OBJECT_PT_shell_advanced(Panel):
         col.prop(props, "even_thickness")
         if props.even_thickness:
             col.label(text="May create artifacts", icon='ERROR')
-        col.prop(props, "fast_mode")
         solver = cavity(context)[0]
-        if solver:
+        # Fast Mode only picks between the solvers for an open or self-intersecting mesh
+        row = col.row()
+        row.active = solver != "Manifold"
+        row.prop(props, "fast_mode")
+        # The tooltip is static, so the hint says why Fast Mode is greyed out
+        if solver == "Manifold":
+            reason = "with Combine Selected" if is_combined(context) else "on a closed mesh without self-intersections"
+            hint(col, context, f"Cavity solver: Manifold. Fast Mode has no effect {reason}")
+        elif solver:
             hint(col, context, f"Cavity solver: {solver}")
 
         col = layout.column()

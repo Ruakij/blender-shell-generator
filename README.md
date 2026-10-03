@@ -75,7 +75,7 @@ The checks for holes, self-intersections and inward normals read every face. The
 Collapsed by default; the defaults suit most meshes. "Reset Settings" at its bottom restores all settings.
 - **Combine Selected**: Join all selected meshes into one remeshed source for the shell
 - **Even Thickness**: Help maintain thickness at sharp corners (experimental, may create artifacts)
-- **Fast Mode**: Cut the cavity of an open or self-intersecting mesh with the faster but less reliable Float boolean solver instead of Exact. The line below it shows the solver the cavity cut uses, hidden for a large mesh until Create checks it
+- **Fast Mode**: Cut the cavity of an open or self-intersecting mesh with the faster but less reliable Float boolean solver instead of Exact. It has no effect with Combine Selected or a clean mesh, whose cavity the Manifold solver cuts, and is greyed out then. The line below it shows the solver the cavity cut uses and, while Fast Mode is greyed out, why; it is hidden for a large mesh until Create checks it
 - **Auto Voxel Size**: Calculate the remesh resolution from the object size and complexity, at most half the offset. The remesh only rebuilds the offset layer and lands within about one voxel, so this keeps at least half the requested gap. The line below it shows the resulting voxel size and the voxels along the longest axis
   - **Detail Level**: Scale the size-based voxel size (lower = finer)
   - **Remesh Voxel Size**: Direct control over the remesh resolution when Auto Voxel Size is off; a line shows the size actually used when Max Voxels per Axis raises it
